@@ -1,20 +1,57 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, Building2, GraduationCap } from 'lucide-react';
+import { register, mapUiRoleToApi } from '../services/authService';
 
 export function SignUpStep2() {
   const navigate = useNavigate();
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+   const [loadingRole, setLoadingRole] = useState<'educator' | 'student' | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRoleSelect = (role: 'educator' | 'student') => {
-    // Store role and complete signup
-    localStorage.setItem('userRole', role);
-    
-    // Navigate to appropriate dashboard
-    if (role === 'educator') {
-      navigate('/instructor');
-    } else {
-      navigate('/student');
+  const handleRoleSelect = async (role: 'educator' | 'student') => {
+    setError(null);
+    setLoadingRole(role);
+
+    try {
+      const stored = localStorage.getItem('signupData');
+      if (!stored) {
+        navigate('/signup');
+        return;
+      }
+
+      const signupData = JSON.parse(stored) as {
+        name: string;
+        email: string;
+        password: string;
+      };
+
+      const apiRole = mapUiRoleToApi(role);
+
+      const response = await register({
+        email: signupData.email,
+        password: signupData.password,
+        fullName: signupData.name,
+        role: apiRole,
+        phoneNumber: null,
+      });
+
+      localStorage.removeItem('signupData');
+
+      const uiRole = response.user.role.toLowerCase() === 'instructor' ? 'instructor' : 'student';
+      if (uiRole === 'instructor') {
+        navigate('/instructor');
+      } else {
+        navigate('/student');
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Registration failed. Please try again.');
+      }
+    } finally {
+      setLoadingRole(null);
     }
   };
 
@@ -36,6 +73,7 @@ export function SignUpStep2() {
           {/* Educator Card */}
           <button
             onClick={() => handleRoleSelect('educator')}
+            disabled={loadingRole === 'educator'}
             onMouseEnter={() => setHoveredCard('educator')}
             onMouseLeave={() => setHoveredCard(null)}
             className="relative p-10 text-left transition-all duration-300 backdrop-blur-xl rounded-2xl"
@@ -108,6 +146,7 @@ export function SignUpStep2() {
           {/* Student Card */}
           <button
             onClick={() => handleRoleSelect('student')}
+            disabled={loadingRole === 'student'}
             onMouseEnter={() => setHoveredCard('student')}
             onMouseLeave={() => setHoveredCard(null)}
             className="relative p-10 text-left transition-all duration-300 backdrop-blur-xl rounded-2xl"
@@ -177,6 +216,13 @@ export function SignUpStep2() {
             )}
           </button>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mt-6 text-center text-red-400 text-sm">
+            {error}
+          </div>
+        )}
 
         {/* Back Button */}
         <div className="mt-12 text-center">

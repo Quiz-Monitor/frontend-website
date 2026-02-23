@@ -17,6 +17,46 @@ export function SaaSLandingPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const heroRef = useRef<HTMLDivElement>(null);
 
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    const refreshToken = localStorage.getItem('authRefreshToken');
+    const expiresAt = localStorage.getItem('authExpiresAt');
+
+    if (!token || !refreshToken) return;
+
+    if (expiresAt) {
+      const expiryDate = new Date(expiresAt);
+      if (Number.isFinite(expiryDate.getTime()) && expiryDate <= new Date()) {
+        return;
+      }
+    }
+
+    let role = localStorage.getItem('userRole');
+
+    if (!role) {
+      const userRaw = localStorage.getItem('authUser');
+      if (userRaw) {
+        try {
+          const user = JSON.parse(userRaw) as { role?: string };
+          if (user.role) {
+            role = user.role.toLowerCase();
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+
+    const normalizedRole = role?.toLowerCase();
+
+    if (normalizedRole === 'instructor' || normalizedRole === 'educator') {
+      navigate('/instructor', { replace: true });
+    } else if (normalizedRole === 'student') {
+      navigate('/student', { replace: true });
+    }
+  }, [navigate]);
+
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);

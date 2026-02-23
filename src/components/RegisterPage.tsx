@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, Mail, Lock, User } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { register, mapUiRoleToApi } from '../services/authService';
 
 export function RegisterPage() {
   const navigate = useNavigate();
@@ -9,9 +10,13 @@ export function RegisterPage() {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'student',
+    phoneNumber: ''
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Password strength calculation
   const getPasswordStrength = (password: string) => {
@@ -30,15 +35,41 @@ export function RegisterPage() {
 
   const passwordStrength = getPasswordStrength(formData.password);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       alert('Passwords do not match!');
       return;
     }
-    // Store registration data and navigate to role selection
-    localStorage.setItem('signupData', JSON.stringify(formData));
-    navigate('/signup/role-selection');
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const apiRole = mapUiRoleToApi(formData.role || 'student');
+
+      const response = await register({
+        email: formData.email,
+        password: formData.password,
+        fullName: formData.name,
+        role: apiRole,
+        phoneNumber: formData.phoneNumber.trim() || null
+      });
+
+      const uiRole = response.user.role.toLowerCase() === 'instructor' ? 'instructor' : 'student';
+      if (uiRole === 'instructor') {
+        navigate('/instructor');
+      } else {
+        navigate('/student');
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Registration failed. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -118,6 +149,35 @@ export function RegisterPage() {
                 </div>
               </div>
 
+              {/* Role Field */}
+              <div>
+                <label className="block text-gray-300 mb-2">Role</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, role: 'instructor' })}
+                    className={`w-full py-2 rounded-xl border text-sm transition ${
+                      formData.role === 'instructor'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:border-cyan-400/60'
+                    }`}
+                  >
+                    Instructor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, role: 'student' })}
+                    className={`w-full py-2 rounded-xl border text-sm transition ${
+                      formData.role === 'student'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:border-cyan-400/60'
+                    }`}
+                  >
+                    Student
+                  </button>
+                </div>
+              </div>
+
               {/* Password Field */}
               <div>
                 <label className="block text-gray-300 mb-2">Password</label>
@@ -182,6 +242,28 @@ export function RegisterPage() {
                 </div>
               </div>
 
+              {/* Phone Number Field (Optional) */}
+              <div>
+                <label className="block text-gray-300 mb-2">
+                  Phone Number <span className="text-gray-500">(optional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="tel"
+                    value={formData.phoneNumber}
+                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                    onFocus={() => setFocusedField('phoneNumber')}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="01101723376"
+                    className={`w-full pl-4 pr-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none transition ${
+                      focusedField === 'phoneNumber' 
+                        ? 'border-cyan-400 shadow-lg shadow-cyan-500/50' 
+                        : 'border-white/10'
+                    }`}
+                  />
+                </div>
+              </div>
+
               {/* Terms & Conditions */}
               <div className="flex items-start gap-2">
                 <input type="checkbox" required className="w-4 h-4 mt-1 rounded" />
@@ -190,12 +272,22 @@ export function RegisterPage() {
                 </label>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div className="text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
               {/* Create Account Button */}
               <button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-2xl hover:shadow-blue-500/50 transition"
+                disabled={isSubmitting}
+                className={`w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl transition ${
+                  isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-2xl hover:shadow-blue-500/50'
+                }`}
               >
-                Create Account
+                {isSubmitting ? 'Creating Account...' : 'Create Account'}
               </button>
             </form>
 

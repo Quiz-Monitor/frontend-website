@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, Mail, Lock } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { login } from '../services/authService';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -10,11 +11,35 @@ export function LoginPage() {
     password: ''
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Demo: Navigate to instructor dashboard
-    navigate('/instructor');
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await login({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      const role = response.user.role?.toLowerCase();
+      if (role === 'instructor' || role === 'educator') {
+        navigate('/instructor');
+      } else {
+        navigate('/student');
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Login failed. Please try again.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -116,12 +141,22 @@ export function LoginPage() {
                 </button>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div className="text-red-400 text-sm">
+                  {error}
+                </div>
+              )}
+
               {/* Sign In Button */}
               <button
                 type="submit"
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:shadow-2xl hover:shadow-blue-500/50 transition"
+                disabled={isSubmitting}
+                className={`w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl transition ${
+                  isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-2xl hover:shadow-blue-500/50'
+                }`}
               >
-                Log In
+                {isSubmitting ? 'Logging in...' : 'Log In'}
               </button>
             </form>
 
