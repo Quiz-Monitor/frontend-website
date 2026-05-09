@@ -7,15 +7,10 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { NotificationsButton } from './NotificationsButton';
+import { joinExam, getStudentExams, StudentExam } from '../services/examService';
+import { toast } from 'sonner';
 
-interface UpcomingExam {
-  id: string;
-  subject: string;
-  instructor: string;
-  startTime: Date;
-  duration: string;
-  questions: number;
-}
+// Types moved to examService.ts
 
 interface CompletedExam {
   id: string;
@@ -41,6 +36,7 @@ export function StudentDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [examCode, setExamCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   // Mock notifications
   const notifications = [
@@ -52,33 +48,24 @@ export function StudentDashboard() {
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
-  // Mock data for upcoming exams
-  const upcomingExams: UpcomingExam[] = [
-    {
-      id: '1',
-      subject: 'Advanced Mathematics - Final Exam',
-      instructor: 'Dr. Sarah Johnson',
-      startTime: new Date(Date.now() - 5 * 60 * 1000), // Started 5 minutes ago - ACTIVE NOW!
-      duration: '120 min',
-      questions: 25
-    },
-    {
-      id: '2',
-      subject: 'Machine Learning Fundamentals',
-      instructor: 'Prof. Michael Chen',
-      startTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 8 * 60 * 60 * 1000),
-      duration: '90 min',
-      questions: 20
-    },
-    {
-      id: '3',
-      subject: 'Web Development - Midterm',
-      instructor: 'Dr. Emily Parker',
-      startTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000 + 16 * 60 * 60 * 1000),
-      duration: '150 min',
-      questions: 30
+  const [studentExams, setStudentExams] = useState<StudentExam[]>([]);
+  const [isLoadingExams, setIsLoadingExams] = useState(true);
+
+  const fetchExams = async () => {
+    try {
+      setIsLoadingExams(true);
+      const exams = await getStudentExams();
+      setStudentExams(exams);
+    } catch (error) {
+      toast.error('Failed to load exams');
+    } finally {
+      setIsLoadingExams(false);
     }
-  ];
+  };
+
+  useEffect(() => {
+    fetchExams();
+  }, []);
 
   // Mock data for completed exams
   const completedExams: CompletedExam[] = [
@@ -87,9 +74,29 @@ export function StudentDashboard() {
     { id: '3', name: 'Physics Fundamentals', date: 'Nov 20, 2024', score: null, duration: '120 min', totalQuestions: 25, correctAnswers: null, status: 'pending' }
   ];
 
-  const handleJoinExam = () => {
-    if (examCode.trim()) {
-      navigate('/student/waiting/demo');
+  const handleJoinExam = async () => {
+    if (!examCode.trim()) {
+      toast.error('Please enter an exam code');
+      return;
+    }
+
+    try {
+      setIsJoining(true);
+      const result = await joinExam({ examCode: examCode.trim() });
+      toast.success(`Successfully joined: ${result.title}`);
+      
+      // Save attemptId to localStorage
+      const savedAttempts = JSON.parse(localStorage.getItem('exam_attempts') || '{}');
+      savedAttempts[result.examId] = result.attemptId;
+      localStorage.setItem('exam_attempts', JSON.stringify(savedAttempts));
+
+      // Refresh the exams list and clear input
+      setExamCode('');
+      await fetchExams();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to join exam');
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -107,7 +114,7 @@ export function StudentDashboard() {
     ? Math.round(gradedExams.reduce((sum, exam) => sum + (exam.score || 0), 0) / gradedExams.length)
     : 0;
   const passedExams = gradedExams.filter(exam => (exam.score || 0) >= 60).length;
-  const upcomingCount = upcomingExams.length;
+  const upcomingCount = studentExams.length;
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#0F111A' }}>
@@ -261,10 +268,18 @@ export function StudentDashboard() {
                   />
                   <button
                     onClick={handleJoinExam}
-                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transition shadow-lg hover:shadow-blue-500/30"
+                    disabled={isJoining}
+                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white transition shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}
                   >
-                    Join Exam
+                    {isJoining ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Joining...
+                      </>
+                    ) : (
+                      'Join Exam'
+                    )}
                   </button>
                 </div>
               </div>
@@ -472,10 +487,22 @@ export function StudentDashboard() {
                   <p className="text-gray-400 text-sm">Exams scheduled in the next 7 days</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-6">
-                {upcomingExams.map((exam) => (
-                  <CountdownCard key={exam.id} exam={exam} />
-                ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {isLoadingExams ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-[400px] rounded-2xl bg-white/5 animate-pulse" />
+                  ))
+                ) : studentExams.length > 0 ? (
+                  studentExams.map((exam) => (
+                    <CountdownCard key={exam.examCode} exam={exam} />
+                  ))
+                ) : (
+                  <div className="col-span-full py-12 text-center rounded-2xl border border-dashed border-white/10">
+                    <BookOpen className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                    <h3 className="text-white text-lg font-medium">No exams found</h3>
+                    <p className="text-gray-400">You don't have any upcoming or active exams.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -486,18 +513,21 @@ export function StudentDashboard() {
 }
 
 // Countdown Timer Card Component
-function CountdownCard({ exam }: { exam: UpcomingExam }) {
+function CountdownCard({ exam }: { exam: StudentExam }) {
   const navigate = useNavigate();
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isActive, setIsActive] = useState(false);
 
+  const startTime = new Date(exam.startTime);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date().getTime();
-      const distance = exam.startTime.getTime() - now;
+      const distance = startTime.getTime() - now;
 
-      if (distance < 0) {
-        // Exam has started
+      const statusActive = exam.examStatus === 'active' || exam.examStatus === 'in_progress';
+      if (distance < 0 || statusActive) {
+        // Exam has started or is marked active by backend
         setIsActive(true);
         const elapsed = Math.abs(distance);
         setTimeLeft({
@@ -520,15 +550,25 @@ function CountdownCard({ exam }: { exam: UpcomingExam }) {
     return () => clearInterval(interval);
   }, [exam.startTime]);
 
+  const isWaiting = exam.examStatus === 'waiting';
+  const isGraded = exam.examStatus === 'graded';
+  const isInProgress = exam.examStatus === 'in_progress' || exam.examStatus === 'active';
+
   return (
     <div
       className={`rounded-2xl border p-6 group transition-all duration-300 ${
-        isActive ? 'border-green-500/50 shadow-lg shadow-green-500/20' : 'hover:border-blue-500/50'
+        isInProgress ? 'border-green-500/50 shadow-lg shadow-green-500/20' : 
+        isGraded ? 'border-purple-500/50 hover:border-purple-500' :
+        'hover:border-blue-500/50'
       }`}
       style={{
-        backgroundColor: isActive ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: isInProgress ? 'rgba(34, 197, 94, 0.05)' : 
+                         isGraded ? 'rgba(168, 85, 247, 0.05)' :
+                         'rgba(255, 255, 255, 0.03)',
         backdropFilter: 'blur(10px)',
-        borderColor: isActive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255, 255, 255, 0.1)'
+        borderColor: isInProgress ? 'rgba(34, 197, 94, 0.3)' : 
+                     isGraded ? 'rgba(168, 85, 247, 0.3)' :
+                     'rgba(255, 255, 255, 0.1)'
       }}
     >
       {/* Header */}
@@ -537,19 +577,29 @@ function CountdownCard({ exam }: { exam: UpcomingExam }) {
           <h3 className={`mb-1 text-lg transition ${
             isActive ? 'text-green-400' : 'text-white group-hover:text-blue-400'
           }`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-            {exam.subject}
+            {exam.examTitle}
           </h3>
-          <p className="text-gray-400 text-sm">{exam.instructor}</p>
+          <p className="text-gray-400 text-sm">{exam.instructorName}</p>
         </div>
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-          isActive ? 'bg-green-500/20 animate-pulse' : 'bg-blue-500/20'
+          isInProgress ? 'bg-green-500/20 animate-pulse' : 
+          isGraded ? 'bg-purple-500/20' : 'bg-blue-500/20'
         }`}>
-          <Calendar className={`w-5 h-5 ${isActive ? 'text-green-400' : 'text-blue-400'}`} />
+          <Calendar className={`w-5 h-5 ${
+            isInProgress ? 'text-green-400' : 
+            isGraded ? 'text-purple-400' : 'text-blue-400'
+          }`} />
         </div>
       </div>
 
-      {/* Active Badge */}
-      {isActive && (
+      {/* Exam Code Badge */}
+      <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+        <span className="text-gray-400 text-xs">Code:</span>
+        <span className="text-blue-400 text-xs font-mono font-bold tracking-wider">{exam.examCode}</span>
+      </div>
+
+      {/* Status Badges */}
+      {isInProgress && (
         <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-green-500/20 border border-green-500/30">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
           <span className="text-green-400 text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
@@ -558,67 +608,104 @@ function CountdownCard({ exam }: { exam: UpcomingExam }) {
         </div>
       )}
 
+      {isGraded && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-purple-500/20 border border-purple-500/30">
+          <CheckCircle className="w-4 h-4 text-purple-400" />
+          <span className="text-purple-400 text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+            RESULTS AVAILABLE
+          </span>
+        </div>
+      )}
+
+      {isWaiting && !isActive && (
+        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
+          <Clock className="w-4 h-4 text-blue-400" />
+          <span className="text-blue-400 text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+            WAITING FOR START
+          </span>
+        </div>
+      )}
+
       {/* Info */}
       <div className="flex items-center gap-4 mb-4 p-3 rounded-xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
         <div className="flex items-center gap-2 text-gray-400 text-xs">
           <Clock className="w-4 h-4" />
-          <span>{exam.duration}</span>
+          <span>{exam.durationMinutes} min</span>
         </div>
         <div className="flex items-center gap-2 text-gray-400 text-xs">
           <FileText className="w-4 h-4" />
-          <span>{exam.questions} questions</span>
+          <span>{exam.questionCount} questions</span>
         </div>
       </div>
 
-      {/* Countdown Timer */}
-      <div className="mb-4">
-        <div className="text-gray-400 text-xs mb-2">
-          {isActive ? 'Time Elapsed:' : 'Starts in:'}
+      {/* Countdown Timer (Only for non-graded) */}
+      {!isGraded && (
+        <div className="mb-4">
+          <div className="text-gray-400 text-xs mb-2">
+            {isInProgress ? 'Time Elapsed:' : 'Starts in:'}
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            <div className={`text-center p-2 rounded-lg ${
+              isInProgress ? 'bg-green-500/10' : 'bg-blue-500/10'
+            }`}>
+              <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
+                {String(timeLeft.days).padStart(2, '0')}
+              </div>
+              <div className="text-gray-500 text-xs">Days</div>
+            </div>
+            <div className={`text-center p-2 rounded-lg ${
+              isInProgress ? 'bg-green-500/10' : 'bg-blue-500/10'
+            }`}>
+              <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
+                {String(timeLeft.hours).padStart(2, '0')}
+              </div>
+              <div className="text-gray-500 text-xs">Hrs</div>
+            </div>
+            <div className={`text-center p-2 rounded-lg ${
+              isInProgress ? 'bg-green-500/10' : 'bg-blue-500/10'
+            }`}>
+              <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
+                {String(timeLeft.minutes).padStart(2, '0')}
+              </div>
+              <div className="text-gray-500 text-xs">Min</div>
+            </div>
+            <div className={`text-center p-2 rounded-lg ${
+              isInProgress ? 'bg-green-500/10' : 'bg-blue-500/10'
+            }`}>
+              <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
+                {String(timeLeft.seconds).padStart(2, '0')}
+              </div>
+              <div className="text-gray-500 text-xs">Sec</div>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-4 gap-2">
-          <div className={`text-center p-2 rounded-lg ${
-            isActive ? 'bg-green-500/10' : 'bg-blue-500/10'
-          }`}>
-            <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-              {String(timeLeft.days).padStart(2, '0')}
-            </div>
-            <div className="text-gray-500 text-xs">Days</div>
-          </div>
-          <div className={`text-center p-2 rounded-lg ${
-            isActive ? 'bg-green-500/10' : 'bg-blue-500/10'
-          }`}>
-            <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-              {String(timeLeft.hours).padStart(2, '0')}
-            </div>
-            <div className="text-gray-500 text-xs">Hrs</div>
-          </div>
-          <div className={`text-center p-2 rounded-lg ${
-            isActive ? 'bg-green-500/10' : 'bg-blue-500/10'
-          }`}>
-            <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-              {String(timeLeft.minutes).padStart(2, '0')}
-            </div>
-            <div className="text-gray-500 text-xs">Min</div>
-          </div>
-          <div className={`text-center p-2 rounded-lg ${
-            isActive ? 'bg-green-500/10' : 'bg-blue-500/10'
-          }`}>
-            <div className="text-white mb-1 text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-              {String(timeLeft.seconds).padStart(2, '0')}
-            </div>
-            <div className="text-gray-500 text-xs">Sec</div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Action Button */}
-      {isActive ? (
+      {isInProgress ? (
         <button
-          onClick={() => navigate(`/student/permissions/${exam.id}`)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white shadow-lg shadow-green-500/30"
+          onClick={() => {
+            const savedAttempts = JSON.parse(localStorage.getItem('exam_attempts') || '{}');
+            const attemptId = savedAttempts[exam.examId];
+            if (attemptId) {
+              navigate(`/student/exam/${exam.examId}`);
+            } else {
+              // Fallback to examId if attemptId is missing
+              navigate(`/student/exam/${exam.examId}`);
+            }
+          }}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white shadow-lg shadow-green-500/20"
         >
           <PlayCircle className="w-5 h-5" />
-          <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>Join Now</span>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>Resume / Start Exam</span>
+        </button>
+      ) : isGraded ? (
+        <button
+          onClick={() => navigate(`/student/history/${exam.examId}`)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white shadow-lg shadow-purple-500/20"
+        >
+          <Award className="w-5 h-5" />
+          <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>View Results</span>
         </button>
       ) : (
         <button
@@ -627,7 +714,9 @@ function CountdownCard({ exam }: { exam: UpcomingExam }) {
           style={{ borderColor: 'rgba(100, 116, 139, 0.3)' }}
         >
           <Lock className="w-4 h-4" />
-          <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>Starts Soon</span>
+          <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+            {isWaiting ? 'Waiting for Proctor' : 'Coming Soon'}
+          </span>
         </button>
       )}
     </div>

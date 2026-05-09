@@ -1,110 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FileText, Search, Filter, Plus, LayoutDashboard, Database, Users, Shield,
   Settings, HelpCircle, LogOut, Brain, Calendar, Clock, Users as UsersIcon,
   AlertTriangle, CheckCircle, Radio, Eye, Edit, Trash2, Copy, MoreVertical,
-  TrendingUp, Award, History
+  TrendingUp, Award, History, Loader2
 } from 'lucide-react';
+import { getMyExams, Exam } from '../services/examService';
+import { toast } from 'sonner';
 
-const examsList = [
-  {
-    id: 'exam-1',
-    title: 'Advanced Mathematics - Final Exam',
-    subject: 'Mathematics',
-    code: 'MATH-2024',
-    date: 'Dec 15, 2024',
-    time: '10:00 AM',
-    duration: '120 min',
-    students: 45,
-    status: 'scheduled',
-    totalQuestions: 25,
-    aiMonitoring: true,
-    passScore: 60
-  },
-  {
-    id: 'exam-2',
-    title: 'Introduction to Physics - Midterm',
-    subject: 'Physics',
-    code: 'PHY-101',
-    date: 'Dec 12, 2024',
-    time: '2:00 PM',
-    duration: '90 min',
-    students: 38,
-    status: 'active',
-    totalQuestions: 20,
-    aiMonitoring: true,
-    passScore: 50,
-    activeStudents: 32,
-    completedStudents: 15
-  },
-  {
-    id: 'exam-3',
-    title: 'Computer Science Fundamentals',
-    subject: 'Computer Science',
-    code: 'CS-150',
-    date: 'Nov 28, 2024',
-    time: '9:00 AM',
-    duration: '150 min',
-    students: 52,
-    status: 'completed',
-    totalQuestions: 30,
-    aiMonitoring: true,
-    passScore: 70,
-    resultsPublished: true,
-    passRate: 96
-  },
-  {
-    id: 'exam-4',
-    title: 'Data Structures & Algorithms',
-    subject: 'Computer Science',
-    code: 'CS-250',
-    date: 'Nov 25, 2024',
-    time: '11:00 AM',
-    duration: '180 min',
-    students: 41,
-    status: 'completed',
-    totalQuestions: 35,
-    aiMonitoring: true,
-    passScore: 65,
-    resultsPublished: false,
-    passRate: 88
-  },
-  {
-    id: 'exam-5',
-    title: 'Chemistry Lab Assessment',
-    subject: 'Chemistry',
-    code: 'CHEM-202',
-    date: 'Dec 18, 2024',
-    time: '3:00 PM',
-    duration: '60 min',
-    students: 33,
-    status: 'draft',
-    totalQuestions: 15,
-    aiMonitoring: false,
-    passScore: 55
-  },
-  {
-    id: 'exam-6',
-    title: 'English Literature - Essay Writing',
-    subject: 'English',
-    code: 'ENG-301',
-    date: 'Dec 20, 2024',
-    time: '1:00 PM',
-    duration: '120 min',
-    students: 28,
-    status: 'scheduled',
-    totalQuestions: 10,
-    aiMonitoring: true,
-    passScore: 60
-  }
-];
+// Removed static examsList
 
 export function MyExamsListPage() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('exams');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchExams = async () => {
+      try {
+        const data = await getMyExams();
+        setExams(data);
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to fetch exams');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchExams();
+  }, []);
 
   const mainNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -127,11 +55,22 @@ export function MyExamsListPage() {
     }
   };
 
-  const filteredExams = examsList.filter(exam => {
+  const getExamStatus = (startTime: string, endTime: string) => {
+    const now = new Date();
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (now < start) return 'scheduled';
+    if (now >= start && now <= end) return 'active';
+    return 'completed';
+  };
+
+  const filteredExams = exams.filter(exam => {
+    const status = getExamStatus(exam.startTime, exam.endTime);
     const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         exam.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         exam.code.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || exam.status === filterStatus;
+                         exam.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         exam.examCode.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterStatus === 'all' || status === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
@@ -315,158 +254,135 @@ export function MyExamsListPage() {
         {/* Exams Grid */}
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {filteredExams.map((exam) => (
-                <div 
-                  key={exam.id}
-                  className="rounded-2xl border p-6 group hover:border-blue-500/50 transition-all duration-300 cursor-pointer"
-                  style={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                    backdropFilter: 'blur(10px)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)'
-                  }}
-                  onClick={() => {
-                    if (exam.status === 'completed') {
-                      navigate('/instructor/results');
-                    }
-                  }}
-                >
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-white text-lg group-hover:text-blue-400 transition" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                          {exam.title}
-                        </h3>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-lg text-xs border ${getStatusColor(exam.status)}`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                          {exam.status.toUpperCase()}
-                        </span>
-                        <span className="text-gray-400 text-sm">{exam.code}</span>
-                      </div>
-                    </div>
-                    <button className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition">
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  {/* Info Grid */}
-                  <div className="grid grid-cols-2 gap-4 mb-4 p-4 rounded-xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
-                    <div className="flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-blue-400" />
-                      <div>
-                        <div className="text-gray-400 text-xs">Date</div>
-                        <div className="text-white text-sm">{exam.date}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-5 h-5 text-purple-400" />
-                      <div>
-                        <div className="text-gray-400 text-xs">Time</div>
-                        <div className="text-white text-sm">{exam.time}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <UsersIcon className="w-5 h-5 text-green-400" />
-                      <div>
-                        <div className="text-gray-400 text-xs">Students</div>
-                        <div className="text-white text-sm">{exam.students}</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-yellow-400" />
-                      <div>
-                        <div className="text-gray-400 text-xs">Questions</div>
-                        <div className="text-white text-sm">{exam.totalQuestions}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Active Exam Stats */}
-                  {exam.status === 'active' && (
-                    <div className="mb-4 p-4 rounded-xl border" style={{ 
-                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                      borderColor: 'rgba(16, 185, 129, 0.3)'
-                    }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-green-400 text-sm flex items-center gap-2">
-                          <Radio className="w-4 h-4 animate-pulse" />
-                          Live Now
-                        </span>
-                        <span className="text-white text-sm">{exam.completedStudents}/{exam.activeStudents} submitted</span>
-                      </div>
-                      <div className="w-full bg-white/10 rounded-full h-2">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${(exam.completedStudents! / exam.activeStudents!) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Completed Exam Stats */}
-                  {exam.status === 'completed' && (
-                    <div className="mb-4 grid grid-cols-2 gap-4">
-                      <div className="p-3 rounded-xl" style={{ 
-                        backgroundColor: (exam as any).resultsPublished ? 'rgba(16, 185, 129, 0.1)' : 'rgba(234, 179, 8, 0.1)' 
-                      }}>
-                        <div className="flex items-center gap-2 mb-1">
-                          {(exam as any).resultsPublished ? (
-                            <CheckCircle className="w-4 h-4 text-green-400" />
-                          ) : (
-                            <Clock className="w-4 h-4 text-yellow-400" />
-                          )}
-                          <span className="text-gray-400 text-xs">Status</span>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+                <p className="text-gray-400">Loading your exams...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {filteredExams.map((exam) => {
+                  const status = getExamStatus(exam.startTime, exam.endTime);
+                  const startDate = new Date(exam.startTime);
+                  
+                  return (
+                    <div 
+                      key={exam.examId}
+                      className="rounded-2xl border p-6 group hover:border-blue-500/50 transition-all duration-300 cursor-pointer"
+                      style={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                        backdropFilter: 'blur(10px)',
+                        borderColor: 'rgba(255, 255, 255, 0.1)'
+                      }}
+                      onClick={() => {
+                        if (status === 'completed') {
+                          navigate(`/instructor/results/${exam.examId}`);
+                        } else {
+                          navigate(`/instructor/exam-results/${exam.examId}`);
+                        }
+                      }}
+                    >
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-white text-lg group-hover:text-blue-400 transition" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                              {exam.title}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className={`px-3 py-1 rounded-lg text-xs border ${getStatusColor(status)}`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+                              {status.toUpperCase()}
+                            </span>
+                            <span className="text-gray-400 text-sm">{exam.examCode}</span>
+                          </div>
                         </div>
-                        <div className={`text-sm ${(exam as any).resultsPublished ? 'text-green-400' : 'text-yellow-400'}`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                          {(exam as any).resultsPublished ? 'Published' : 'Pending Review'}
+                        <button className="p-2 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition">
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                        {exam.description || 'No description provided.'}
+                      </p>
+
+                      {/* Info Grid */}
+                      <div className="grid grid-cols-2 gap-4 mb-4 p-4 rounded-xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+                        <div className="flex items-center gap-3">
+                          <Calendar className="w-5 h-5 text-blue-400" />
+                          <div>
+                            <div className="text-gray-400 text-xs">Date</div>
+                            <div className="text-white text-sm">{startDate.toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Clock className="w-5 h-5 text-purple-400" />
+                          <div>
+                            <div className="text-gray-400 text-xs">Time</div>
+                            <div className="text-white text-sm">{startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <UsersIcon className="w-5 h-5 text-green-400" />
+                          <div>
+                            <div className="text-gray-400 text-xs">Duration</div>
+                            <div className="text-white text-sm">{exam.durationMinutes} min</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Shield className="w-5 h-5 text-yellow-400" />
+                          <div>
+                            <div className="text-gray-400 text-xs">Exam ID</div>
+                            <div className="text-white text-sm">#{exam.examId}</div>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <TrendingUp className="w-4 h-4 text-green-400" />
-                          <span className="text-gray-400 text-xs">Pass Rate</span>
+
+                      {/* Active Exam Stats */}
+                      {status === 'active' && (
+                        <div className="mb-4 p-4 rounded-xl border" style={{ 
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                          borderColor: 'rgba(16, 185, 129, 0.3)'
+                        }}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-green-400 text-sm flex items-center gap-2">
+                              <Radio className="w-4 h-4 animate-pulse" />
+                              Live Now
+                            </span>
+                            <span className="text-white text-sm">Monitor participation in real-time</span>
+                          </div>
                         </div>
-                        <div className="text-white text-xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                          {exam.passRate}%
-                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2">
+                        {(status === 'scheduled' || status === 'completed') && (
+                          <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition border border-blue-500/30">
+                            <Eye className="w-4 h-4" />
+                            <span className="text-sm">{status === 'completed' ? 'View Results' : 'View Details'}</span>
+                          </button>
+                        )}
+                        {status === 'active' && (
+                          <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/20 hover:bg-green-500/30 text-green-400 transition border border-green-500/30">
+                            <Eye className="w-4 h-4" />
+                            <span className="text-sm">Monitor Live</span>
+                          </button>
+                        )}
+                        <button className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition">
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  )}
+                  );
+                })}
+              </div>
+            )}
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center gap-2">
-                    {exam.status === 'draft' && (
-                      <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition border border-blue-500/30">
-                        <Edit className="w-4 h-4" />
-                        <span className="text-sm">Edit</span>
-                      </button>
-                    )}
-                    {(exam.status === 'scheduled' || exam.status === 'completed') && (
-                      <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition border border-blue-500/30">
-                        <Eye className="w-4 h-4" />
-                        <span className="text-sm">View Details</span>
-                      </button>
-                    )}
-                    {exam.status === 'active' && (
-                      <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/20 hover:bg-green-500/30 text-green-400 transition border border-green-500/30">
-                        <Eye className="w-4 h-4" />
-                        <span className="text-sm">Monitor Live</span>
-                      </button>
-                    )}
-                    <button className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition">
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {filteredExams.length === 0 && (
+            {!isLoading && filteredExams.length === 0 && (
               <div className="text-center py-20">
                 <FileText className="w-16 h-16 text-gray-600 mx-auto mb-4" />
                 <h3 className="text-white text-xl mb-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>

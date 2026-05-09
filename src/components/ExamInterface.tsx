@@ -1,121 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Clock, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Camera, Monitor, Shield, Flag, Eye, Brain, X, AlertCircle } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Camera, Monitor, Shield, Flag, Eye, Brain, X, AlertCircle, Loader2, Trophy } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
+import { getExamQuestions, submitBulkAnswers, ExamAttemptQuestionsResponse, Question, Choice, SubmitAnswerRequest, BulkAnswerResponse } from '../services/examService';
+import { toast } from 'sonner';
 
-const mockQuestions = [
-  {
-    id: 1,
-    question: 'What is the derivative of f(x) = 3x² + 2x - 5?',
-    options: [
-      '6x + 2',
-      '3x + 2',
-      '6x - 5',
-      '3x² + 2'
-    ],
-    correctAnswer: 0
-  },
-  {
-    id: 2,
-    question: 'Evaluate the limit: lim(x→0) (sin x)/x',
-    options: [
-      '0',
-      '1',
-      '∞',
-      'Does not exist'
-    ],
-    correctAnswer: 1
-  },
-  {
-    id: 3,
-    question: 'Based on the geometric diagram below, calculate the area of the triangle:',
-    image: 'https://images.unsplash.com/photo-1727522974599-0e4a9c2a5a73?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnZW9tZXRyeSUyMHRyaWFuZ2xlJTIwZGlhZ3JhbXxlbnwxfHx8fDE3NjQ1NTgwNzZ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    options: [
-      '24 cm²',
-      '36 cm²',
-      '48 cm²',
-      '52 cm²'
-    ],
-    correctAnswer: 2
-  },
-  {
-    id: 4,
-    question: 'What is the integral of f(x) = 2x?',
-    options: [
-      'x² + C',
-      '2x² + C',
-      'x²/2 + C',
-      '2x + C'
-    ],
-    correctAnswer: 0
-  },
-  {
-    id: 5,
-    question: 'Find the critical points of f(x) = x³ - 3x + 1',
-    options: [
-      'x = -1, x = 1',
-      'x = 0, x = 3',
-      'x = -1, x = 0',
-      'x = 1, x = 3'
-    ],
-    correctAnswer: 0
-  },
-  {
-    id: 6,
-    question: 'What is the second derivative of f(x) = e^x?',
-    options: [
-      'e^x',
-      'xe^x',
-      '2e^x',
-      '0'
-    ],
-    correctAnswer: 0
-  },
-  {
-    id: 7,
-    question: 'Calculate the area under the curve y = x² from x = 0 to x = 2',
-    options: [
-      '8/3',
-      '4',
-      '2',
-      '16/3'
-    ],
-    correctAnswer: 0
-  },
-  {
-    id: 8,
-    question: 'What is the slope of the tangent line to y = ln(x) at x = e?',
-    options: [
-      '1/e',
-      'e',
-      '1',
-      'ln(e)'
-    ],
-    correctAnswer: 0
-  },
-  {
-    id: 9,
-    question: 'Solve the differential equation: dy/dx = 2x',
-    options: [
-      'y = x² + C',
-      'y = 2x + C',
-      'y = x²/2 + C',
-      'y = 2x² + C'
-    ],
-    correctAnswer: 0
-  },
-  {
-    id: 10,
-    question: 'Find the maximum value of f(x) = -x² + 4x - 3',
-    options: [
-      '1',
-      '2',
-      '3',
-      '4'
-    ],
-    correctAnswer: 0
-  }
-];
+// Mock questions removed
 
 interface AIAlert {
   id: number;
@@ -127,12 +17,53 @@ interface AIAlert {
 export function ExamInterface() {
   const navigate = useNavigate();
   const { examId } = useParams();
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<{ [key: number]: number }>({});
-  const [timeRemaining, setTimeRemaining] = useState(7200); // 120 minutes
+  const [isLoading, setIsLoading] = useState(true);
+  const [attemptData, setAttemptData] = useState<ExamAttemptQuestionsResponse | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers, setAnswers] = useState<Record<number, SubmitAnswerRequest>>({});
+  const [selectedChoices, setSelectedChoices] = useState<number[]>([]);
+  const [answerText, setAnswerText] = useState('');
+  const [questionStartTime, setQuestionStartTime] = useState<Date>(new Date());
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
   const [aiAlerts, setAiAlerts] = useState<AIAlert[]>([]);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [submissionResult, setSubmissionResult] = useState<BulkAnswerResponse | null>(null);
+  const [showScoreModal, setShowScoreModal] = useState(false);
+
+  useEffect(() => {
+    const initExam = async () => {
+      if (!examId) return;
+      try {
+        setIsLoading(true);
+        
+        // Get attemptId from localStorage
+        const savedAttempts = JSON.parse(localStorage.getItem('exam_attempts') || '{}');
+        const attemptId = savedAttempts[parseInt(examId)];
+        
+        if (!attemptId) {
+          toast.error('No exam attempt found. Please join the exam first.');
+          navigate('/student');
+          return;
+        }
+
+        const data = await getExamQuestions(attemptId);
+        setAttemptData(data);
+        setQuestions(data.questions);
+        setTimeRemaining(data.durationMinutes * 60);
+        setQuestionStartTime(new Date());
+      } catch (error) {
+        toast.error('Failed to load exam questions');
+        navigate('/student');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    initExam();
+  }, [examId]);
 
   useEffect(() => {
     // Countdown timer
@@ -140,7 +71,7 @@ export function ExamInterface() {
       setTimeRemaining(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleSubmitExam();
+          if (!isSubmitting) handleSubmitExam();
           return 0;
         }
         return prev - 1;
@@ -173,23 +104,100 @@ export function ExamInterface() {
     };
   }, []);
 
-  const handleAnswerSelect = (optionIndex: number) => {
-    setAnswers({
-      ...answers,
-      [currentQuestion]: optionIndex
-    });
+  const handleAnswerSelect = (choiceId: number) => {
+    const currentQuestionData = questions[currentQuestionIndex];
+    if (!currentQuestionData) return;
+
+    if (currentQuestionData.questionType === 'mcq_multiple') {
+      setSelectedChoices(prev => 
+        prev.includes(choiceId) ? prev.filter(id => id !== choiceId) : [...prev, choiceId]
+      );
+    } else {
+      setSelectedChoices([choiceId]);
+    }
   };
 
-  const handleSubmitExam = () => {
-    navigate('/student');
+  const saveCurrentAnswer = () => {
+    const currentQuestionData = questions[currentQuestionIndex];
+    if (!currentQuestionData) return;
+
+    const now = new Date();
+    const answer: SubmitAnswerRequest = {
+      questionId: currentQuestionData.questionId,
+      selectedChoices: selectedChoices,
+      answerText: answerText,
+      startedAt: questionStartTime.toISOString(),
+      answeredAt: now.toISOString(),
+      timeSpentSeconds: Math.floor((now.getTime() - questionStartTime.getTime()) / 1000)
+    };
+
+    setAnswers(prev => ({
+      ...prev,
+      [currentQuestionData.questionId]: answer
+    }));
+  };
+
+  const handleNavigate = (newIndex: number) => {
+    saveCurrentAnswer();
+    setCurrentQuestionIndex(newIndex);
+    
+    // Load existing answer if any
+    const nextQuestion = questions[newIndex];
+    const existingAnswer = answers[nextQuestion.questionId];
+    if (existingAnswer) {
+      setSelectedChoices(existingAnswer.selectedChoices);
+      setAnswerText(existingAnswer.answerText);
+      setQuestionStartTime(new Date()); // Reset start time for the next question view
+    } else {
+      setSelectedChoices([]);
+      setAnswerText('');
+      setQuestionStartTime(new Date());
+    }
+  };
+
+  const handleSubmitExam = async () => {
+    if (!attemptData) return;
+
+    try {
+      setIsSubmitting(true);
+      saveCurrentAnswer(); // Save the last question's answer
+
+      // We need to use the functional update or the current answers state carefully.
+      // Since saveCurrentAnswer updates state asynchronously, we should construct the final list.
+      const currentQuestionData = questions[currentQuestionIndex];
+      const now = new Date();
+      const lastAnswer: SubmitAnswerRequest = {
+        questionId: currentQuestionData.questionId,
+        selectedChoices: selectedChoices,
+        answerText: answerText,
+        startedAt: questionStartTime.toISOString(),
+        answeredAt: now.toISOString(),
+        timeSpentSeconds: Math.floor((now.getTime() - questionStartTime.getTime()) / 1000)
+      };
+
+      const allAnswers = { ...answers, [currentQuestionData.questionId]: lastAnswer };
+      
+      const result = await submitBulkAnswers(attemptData.attemptId, {
+        answers: Object.values(allAnswers)
+      });
+      
+      setSubmissionResult(result);
+      setShowScoreModal(true);
+      setShowSubmitConfirm(false);
+      toast.success('Exam submitted successfully!');
+    } catch (error) {
+      toast.error('Failed to submit exam');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleFlag = () => {
     const newFlags = new Set(flaggedQuestions);
-    if (newFlags.has(currentQuestion)) {
-      newFlags.delete(currentQuestion);
+    if (newFlags.has(currentQuestionIndex)) {
+      newFlags.delete(currentQuestionIndex);
     } else {
-      newFlags.add(currentQuestion);
+      newFlags.add(currentQuestionIndex);
     }
     setFlaggedQuestions(newFlags);
   };
@@ -201,8 +209,21 @@ export function ExamInterface() {
     return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const progress = ((Object.keys(answers).length) / mockQuestions.length) * 100;
+  const totalQuestions = attemptData?.totalQuestions || 0;
+  const progress = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
   const isLowTime = timeRemaining < 600; // Less than 10 minutes
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: '#0F111A' }}>
+        <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+        <p className="text-gray-400">Preparing your exam environment...</p>
+      </div>
+    );
+  }
+
+  const currentQuestionData = questions[currentQuestionIndex];
+  if (!attemptData || !currentQuestionData) return null;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#0F111A' }}>
@@ -264,10 +285,10 @@ export function ExamInterface() {
                 </div>
                 <div>
                   <h1 className="text-white text-xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                    Advanced Mathematics - Final Exam
+                    {attemptData.examTitle}
                   </h1>
                   <p className="text-gray-400 text-sm">
-                    Question {currentQuestion + 1} of {mockQuestions.length}
+                    Question {currentQuestionIndex + 1} of {totalQuestions}
                   </p>
                 </div>
               </div>
@@ -324,10 +345,10 @@ export function ExamInterface() {
                   <div className="flex items-center gap-3">
                     <div className="px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
                       <span className="text-blue-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                        Question {currentQuestion + 1}
+                        Question {currentQuestionIndex + 1}
                       </span>
                     </div>
-                    {flaggedQuestions.has(currentQuestion) && (
+                    {flaggedQuestions.has(currentQuestionIndex) && (
                       <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-500/20 border border-yellow-500/30">
                         <Flag className="w-4 h-4 text-yellow-400" />
                         <span className="text-yellow-400 text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
@@ -339,7 +360,7 @@ export function ExamInterface() {
                   <button
                     onClick={toggleFlag}
                     className={`p-2 rounded-lg transition ${
-                      flaggedQuestions.has(currentQuestion)
+                      flaggedQuestions.has(currentQuestionIndex)
                         ? 'bg-yellow-500/20 text-yellow-400'
                         : 'bg-white/5 text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/10'
                     }`}
@@ -351,16 +372,16 @@ export function ExamInterface() {
                 {/* Question Text */}
                 <div className="mb-8">
                   <h2 className="text-white text-xl leading-relaxed" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                    {mockQuestions[currentQuestion].question}
+                    {currentQuestionData.questionText}
                   </h2>
                 </div>
 
                 {/* Image */}
-                {mockQuestions[currentQuestion].image && (
+                {currentQuestionData.questionImageUrl && (
                   <div className="mb-8">
                     <ImageWithFallback
-                      src={mockQuestions[currentQuestion].image}
-                      alt="Geometric Diagram"
+                      src={currentQuestionData.questionImageUrl}
+                      alt="Question Image"
                       className="w-full h-auto rounded-lg"
                     />
                   </div>
@@ -368,34 +389,46 @@ export function ExamInterface() {
 
                 {/* Options */}
                 <div className="space-y-3">
-                  {mockQuestions[currentQuestion].options.map((option, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleAnswerSelect(index)}
-                      className={`w-full text-left p-5 rounded-xl border-2 transition group ${
-                        answers[currentQuestion] === index
-                          ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
-                          : 'border-white/10 hover:border-blue-500/50 bg-white/5 hover:bg-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
-                          answers[currentQuestion] === index
-                            ? 'border-blue-500 bg-blue-500'
-                            : 'border-gray-500 group-hover:border-blue-400'
-                        }`}>
-                          {answers[currentQuestion] === index && (
-                            <div className="w-2 h-2 bg-white rounded-full" />
-                          )}
+                  {(currentQuestionData.questionType === 'mcq_single' || 
+                    currentQuestionData.questionType === 'mcq_multiple' || 
+                    currentQuestionData.questionType === 'true_false') ? (
+                    currentQuestionData.choices.map((choice) => (
+                      <button
+                        key={choice.choiceId}
+                        onClick={() => handleAnswerSelect(choice.choiceId)}
+                        className={`w-full text-left p-5 rounded-xl border-2 transition group ${
+                          selectedChoices.includes(choice.choiceId)
+                            ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
+                            : 'border-white/10 hover:border-blue-500/50 bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
+                            selectedChoices.includes(choice.choiceId)
+                              ? 'border-blue-500 bg-blue-500'
+                              : 'border-gray-500 group-hover:border-blue-400'
+                          }`}>
+                            {selectedChoices.includes(choice.choiceId) && (
+                              <div className="w-2 h-2 bg-white rounded-full" />
+                            )}
+                          </div>
+                          <span className={`text-lg transition ${
+                            selectedChoices.includes(choice.choiceId) ? 'text-white' : 'text-gray-300 group-hover:text-white'
+                          }`} style={{ fontFamily: 'Inter, sans-serif' }}>
+                            {choice.text}
+                          </span>
                         </div>
-                        <span className={`text-lg transition ${
-                          answers[currentQuestion] === index ? 'text-white' : 'text-gray-300 group-hover:text-white'
-                        }`} style={{ fontFamily: 'Inter, sans-serif' }}>
-                          {option}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))
+                  ) : (
+                    <textarea
+                      value={answerText}
+                      onChange={(e) => setAnswerText(e.target.value)}
+                      placeholder="Type your answer here..."
+                      className="w-full h-64 p-6 rounded-xl border-2 border-white/10 bg-white/5 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition resize-none"
+                      style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px' }}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -406,8 +439,8 @@ export function ExamInterface() {
                 borderColor: 'rgba(255, 255, 255, 0.1)'
               }}>
                 <button
-                  onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
-                  disabled={currentQuestion === 0}
+                  onClick={() => handleNavigate(Math.max(0, currentQuestionIndex - 1))}
+                  disabled={currentQuestionIndex === 0}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl border transition disabled:opacity-50 disabled:cursor-not-allowed text-white hover:bg-white/10"
                   style={{ borderColor: 'rgba(255, 255, 255, 0.2)' }}
                 >
@@ -416,17 +449,29 @@ export function ExamInterface() {
                 </button>
 
                 <div className="text-gray-400 text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
-                  {Object.keys(answers).length} of {mockQuestions.length} answered
+                  {Object.keys(answers).length} of {totalQuestions} answered
                 </div>
 
                 <button
-                  onClick={() => setCurrentQuestion(Math.min(mockQuestions.length - 1, currentQuestion + 1))}
-                  disabled={currentQuestion === mockQuestions.length - 1}
+                  onClick={() => {
+                    if (currentQuestionIndex === totalQuestions - 1) {
+                      setShowSubmitConfirm(true);
+                    } else {
+                      handleNavigate(currentQuestionIndex + 1);
+                    }
+                  }}
+                  disabled={isSubmitting}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
                   style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
                 >
-                  <span>Next</span>
-                  <ChevronRight className="w-5 h-5" />
+                  {isSubmitting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <span>{currentQuestionIndex === totalQuestions - 1 ? 'Finish' : 'Next'}</span>
+                      <ChevronRight className="w-5 h-5" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -479,14 +524,14 @@ export function ExamInterface() {
                   Questions
                 </h3>
                 <div className="grid grid-cols-5 gap-2">
-                  {mockQuestions.map((_, index) => (
+                  {Array.from({ length: totalQuestions }).map((_, index) => (
                     <button
                       key={index}
-                      onClick={() => setCurrentQuestion(index)}
+                      onClick={() => handleNavigate(index)}
                       className={`aspect-square rounded-lg border-2 flex items-center justify-center text-sm transition relative ${
-                        currentQuestion === index
+                        currentQuestionIndex === index
                           ? 'border-blue-500 bg-blue-500 text-white shadow-lg shadow-blue-500/30'
-                          : answers[index] !== undefined
+                          : answers[questions[index]?.questionId]
                           ? 'border-green-500/50 bg-green-500/20 text-green-400 hover:border-green-500'
                           : 'border-white/20 bg-white/5 text-gray-400 hover:border-white/40 hover:bg-white/10'
                       }`}
@@ -504,7 +549,7 @@ export function ExamInterface() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400">Answered</span>
                     <span className="text-green-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                      {Object.keys(answers).length}/{mockQuestions.length}
+                      {Object.keys(answers).length}/{totalQuestions}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
@@ -516,7 +561,7 @@ export function ExamInterface() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400">Remaining</span>
                     <span className="text-gray-300" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                      {mockQuestions.length - Object.keys(answers).length}
+                      {totalQuestions - Object.keys(answers).length}
                     </span>
                   </div>
                 </div>
@@ -585,10 +630,10 @@ export function ExamInterface() {
               Submit Exam?
             </h3>
             <p className="text-gray-400 text-center mb-6">
-              You have answered {Object.keys(answers).length} out of {mockQuestions.length} questions.
-              {mockQuestions.length - Object.keys(answers).length > 0 && (
+              You have answered {Object.keys(answers).length} out of {totalQuestions} questions.
+              {totalQuestions - Object.keys(answers).length > 0 && (
                 <span className="block mt-2 text-yellow-400">
-                  {mockQuestions.length - Object.keys(answers).length} questions remain unanswered.
+                  {totalQuestions - Object.keys(answers).length} questions remain unanswered.
                 </span>
               )}
             </p>
@@ -606,6 +651,54 @@ export function ExamInterface() {
                 style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
               >
                 Submit Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Score Modal */}
+      {showScoreModal && submissionResult && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
+          <div className="rounded-3xl border p-10 max-w-lg w-full text-center relative overflow-hidden animate-in fade-in zoom-in duration-300" style={{
+            backgroundColor: 'rgba(30, 30, 35, 0.95)',
+            backdropFilter: 'blur(20px)',
+            borderColor: 'rgba(255, 255, 255, 0.1)'
+          }}>
+            {/* Background Glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-blue-500/20 rounded-full blur-[100px] pointer-events-none" />
+            
+            <div className="relative z-10">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-8 shadow-lg shadow-green-500/20">
+                <Trophy className="w-10 h-10 text-white" />
+              </div>
+              
+              <h2 className="text-white text-3xl mb-2" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
+                Exam Completed!
+              </h2>
+              <p className="text-gray-400 mb-10">Great job completing your assessment.</p>
+              
+              <div className="grid grid-cols-2 gap-6 mb-10">
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="text-gray-500 text-xs uppercase tracking-wider mb-2" style={{ fontWeight: 600 }}>Total Score</div>
+                  <div className="text-white text-2xl" style={{ fontWeight: 700 }}>
+                    {submissionResult.score} <span className="text-gray-500 text-lg">/ {submissionResult.totalPoints}</span>
+                  </div>
+                </div>
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="text-gray-500 text-xs uppercase tracking-wider mb-2" style={{ fontWeight: 600 }}>Percentage</div>
+                  <div className="text-green-400 text-2xl" style={{ fontWeight: 700 }}>
+                    {submissionResult.percentage}%
+                  </div>
+                </div>
+              </div>
+              
+              <button
+                onClick={() => navigate('/student')}
+                className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98]"
+                style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '16px' }}
+              >
+                Back to Dashboard
               </button>
             </div>
           </div>

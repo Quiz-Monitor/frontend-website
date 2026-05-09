@@ -24,10 +24,12 @@ import { StudentCodeEntry } from './components/StudentCodeEntry';
 import { StudentWaitingRoom } from './components/StudentWaitingRoom';
 import { ExamPermissionsCheck } from './components/ExamPermissionsCheck';
 import { ExamInterface } from './components/ExamInterface';
+import { Toaster } from 'sonner';
 
 export default function App() {
   return (
     <Router>
+      <Toaster position="top-center" richColors />
       <Routes>
         <Route path="/" element={<SaaSLandingPage />} />
         <Route path="/login" element={<LoginPage />} />

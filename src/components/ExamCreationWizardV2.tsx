@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { addExamQuestion, createExam, ExamQuestionType, publishExam } from '../services/examService';
 import { 
   Brain,
   ChevronRight,
@@ -37,9 +38,17 @@ interface Question {
 export function ExamCreationWizardV2() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
+  const [examId, setExamId] = useState<number | null>(null);
+  const [isCreatingExam, setIsCreatingExam] = useState(false);
+  const [isSubmittingQuestions, setIsSubmittingQuestions] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [questionsSubmitted, setQuestionsSubmitted] = useState(false);
+  const [apiError, setApiError] = useState('');
   
   // Step 1: Exam Details
   const [examName, setExamName] = useState('');
+  const [examDescription, setExamDescription] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(60);
   const [startDate, setStartDate] = useState('Nov 28, 2025');
   const [startTime, setStartTime] = useState('17:27');
   const [endDate, setEndDate] = useState('Dec 05, 2025');
@@ -48,21 +57,8 @@ export function ExamCreationWizardV2() {
   const [randomizeOrder, setRandomizeOrder] = useState(false);
   
   // Step 2: Questions
-  const [questions, setQuestions] = useState<Question[]>([
-    { 
-      id: '1', 
-      text: 'Which of the following terms describes a loop that continues to execute indefinitely because its termination condition is never met?', 
-      type: 'multiple-choice', 
-      points: 0,
-      options: ['Infinite loop', 'Nested loop', 'Recursive loop', 'Conditional loop']
-    },
-    { id: '2', text: 'Explain the primary difference between the **preterite** and **imperfect** tenses in Spanish', type: 'long-answer', points: 10 },
-    { id: '3', text: 'Choose the correct conjugation of the verb *tener* in the present tense', type: 'multiple-choice', points: 0 },
-    { id: '4', text: 'Conjugate the verb *tener* in the present subjunctive mood for the pronouns \'yo\', \'tú\', and \'nosotros\'', type: 'multiple-choice', points: 10 },
-    { id: '5', text: 'Which option correctly completes the sentence', type: 'multiple-choice', points: 0 },
-    { id: '6', text: 'Translate the following sentence from English to Spanish', type: 'long-answer', points: 10 },
-  ]);
-  const [selectedQuestionId, setSelectedQuestionId] = useState('1');
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [selectedQuestionId, setSelectedQuestionId] = useState('');
   const [aiPrompt, setAiPrompt] = useState('');
   
   // Step 3: AI Protection Rules
@@ -83,12 +79,116 @@ export function ExamCreationWizardV2() {
   const multipleChoiceCount = questions.filter(q => q.type === 'multiple-choice').length;
   const longAnswerCount = questions.filter(q => q.type === 'long-answer').length;
 
+  const toIso = (dateText: string, timeText: string) => {
+    const parsed = new Date(`${dateText} ${timeText}`);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new Error('Invalid start/end date or time format.');
+    }
+    return parsed.toISOString();
+  };
+
+  const handleCreateExam = async () => {
+    if (!examName.trim()) {
+      setApiError('Exam name is required.');
+      return;
+    }
+
+    try {
+      setApiError('');
+      setIsCreatingExam(true);
+      const createdExam = await createExam({
+        title: examName.trim(),
+        description: examDescription.trim(),
+        durationMinutes,
+        startTime: toIso(startDate, startTime),
+        endTime: toIso(endDate, endTime),
+        cameraRequired: aiProtection,
+        tabSwitchingDetection: detectTabSwitching,
+        eyeTrackingEnabled: detectGaze,
+        multiplePersonDetection: detectMultipleFaces,
+        maxTabSwitches: 3,
+        maxEyeAwaySeconds: 15,
+      });
+      setExamId(createdExam.examId);
+      setCurrentStep(2);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Failed to create exam.');
+    } finally {
+      setIsCreatingExam(false);
+    }
+  };
+
+  const handleSubmitQuestions = async () => {
+    if (questionsSubmitted) {
+      setCurrentStep(3);
+      return;
+    }
+    if (!examId) {
+      setApiError('Create exam first before adding questions.');
+      return;
+    }
+
+    try {
+      setApiError('');
+      setIsSubmittingQuestions(true);
+      for (let index = 0; index < questions.length; index += 1) {
+        const question = questions[index];
+        await addExamQuestion(examId, {
+          questionType:
+            question.type === 'multiple-choice'
+              ? ExamQuestionType.McqSingle
+              : ExamQuestionType.Essay,
+          questionText: question.text,
+          questionImageUrl: '',
+          points: question.points,
+          orderNumber: index + 1,
+          isRequired: true,
+          choices: (question.options ?? []).map((choice, choiceIndex) => ({
+            choiceId: 0,
+            text: choice,
+            isCorrect: choiceIndex === 0,
+            orderNumber: choiceIndex + 1,
+          })),
+        });
+      }
+      setQuestionsSubmitted(true);
+      setCurrentStep(3);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Failed to submit exam questions.');
+    } finally {
+      setIsSubmittingQuestions(false);
+    }
+  };
+
+  const handlePublishExam = async () => {
+    if (!examId) {
+      setApiError('Create exam first before publishing.');
+      return;
+    }
+    if (!questionsSubmitted) {
+      setApiError('Submit all questions before publishing.');
+      return;
+    }
+
+    try {
+      setApiError('');
+      setIsPublishing(true);
+      await publishExam(examId);
+      navigate('/instructor');
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Failed to publish exam.');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
   const addQuestion = (type: 'multiple-choice' | 'long-answer') => {
     const newQuestion: Question = {
       id: String(questions.length + 1),
       text: type === 'multiple-choice' ? 'New multiple choice question' : 'New long answer question',
       type,
-      points: 5
+      points: 5,
+      options: type === 'multiple-choice' ? ['Option 1', 'Option 2'] : undefined,
     };
     setQuestions([...questions, newQuestion]);
     setSelectedQuestionId(newQuestion.id);
@@ -215,6 +315,11 @@ export function ExamCreationWizardV2() {
           {currentStep === 1 && (
             <div className="p-8">
               <div className="max-w-5xl mx-auto">
+                {apiError && (
+                  <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                    {apiError}
+                  </div>
+                )}
                 {/* Header */}
                 <div className="flex items-start justify-between mb-8">
                   <div>
@@ -222,10 +327,11 @@ export function ExamCreationWizardV2() {
                     <p className="text-gray-400">Set up your exam with AI-powered assessment</p>
                   </div>
                   <button
-                    onClick={() => setCurrentStep(2)}
+                    onClick={handleCreateExam}
+                    disabled={isCreatingExam}
                     className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition"
                   >
-                    Continue to Add Questions
+                    {isCreatingExam ? 'Creating Exam...' : 'Continue to Add Questions'}
                   </button>
                 </div>
 
@@ -282,6 +388,30 @@ export function ExamCreationWizardV2() {
                       onChange={(e) => setExamName(e.target.value)}
                       placeholder="Enter exam name"
                       className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-500 border focus:outline-none focus:border-purple-500 transition"
+                      style={{ backgroundColor: '#1a1d2e', borderColor: '#2d3246' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-300 mb-2">Description</label>
+                    <textarea
+                      value={examDescription}
+                      onChange={(e) => setExamDescription(e.target.value)}
+                      placeholder="Enter exam description"
+                      className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-500 border focus:outline-none focus:border-purple-500 transition"
+                      style={{ backgroundColor: '#1a1d2e', borderColor: '#2d3246' }}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-gray-300 mb-2">Duration (minutes)</label>
+                    <input
+                      type="number"
+                      value={durationMinutes}
+                      onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                      min={1}
+                      className="w-full px-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition"
                       style={{ backgroundColor: '#1a1d2e', borderColor: '#2d3246' }}
                     />
                   </div>
@@ -351,6 +481,11 @@ export function ExamCreationWizardV2() {
           {currentStep === 2 && (
             <div className="flex-1 p-8">
               <div className="max-w-4xl mx-auto">
+                  {apiError && (
+                    <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                      {apiError}
+                    </div>
+                  )}
                   {/* Header */}
                   <div className="flex items-start justify-between mb-8">
                     <div>
@@ -358,10 +493,11 @@ export function ExamCreationWizardV2() {
                       <p className="text-gray-400">Create and manage your exam questions</p>
                     </div>
                     <button
-                      onClick={() => setCurrentStep(3)}
+                      onClick={handleSubmitQuestions}
+                      disabled={isSubmittingQuestions}
                       className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition"
                     >
-                      Next Step
+                      {isSubmittingQuestions ? 'Submitting Questions...' : 'Next Step'}
                     </button>
                   </div>
 
@@ -501,6 +637,11 @@ export function ExamCreationWizardV2() {
                       )}
                     </div>
                   )}
+                  {!selectedQuestion && (
+                    <div className="rounded-xl border border-dashed border-white/20 p-8 text-center text-gray-400" style={{ backgroundColor: '#242838' }}>
+                      Add your first question from the left panel to start building the exam.
+                    </div>
+                  )}
               </div>
             </div>
           )}
@@ -509,6 +650,11 @@ export function ExamCreationWizardV2() {
           {currentStep === 3 && (
             <div className="p-8">
               <div className="max-w-4xl mx-auto">
+                {apiError && (
+                  <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                    {apiError}
+                  </div>
+                )}
                 {/* Header */}
                 <div className="flex items-start justify-between mb-8">
                   <div>
@@ -774,12 +920,13 @@ export function ExamCreationWizardV2() {
                     Back
                   </button>
                   <button
-                    onClick={() => navigate('/instructor')}
+                    onClick={handlePublishExam}
+                    disabled={isPublishing}
                     className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg hover:shadow-lg hover:shadow-green-500/30 transition"
                     style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
                   >
                     <Send className="w-5 h-5" />
-                    Publish Exam
+                    {isPublishing ? 'Publishing...' : 'Publish Exam'}
                   </button>
                 </div>
               </div>
