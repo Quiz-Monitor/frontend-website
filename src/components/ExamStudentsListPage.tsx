@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
-  ArrowLeft, Search, Users, Clock, Award, AlertTriangle,
-  CheckCircle, TrendingUp, TrendingDown, User, Calendar,
-  Brain, FileText, LayoutDashboard, Database, Shield, Settings,
-  HelpCircle, LogOut, Filter
+  ArrowLeft, Search, Users, Clock, Award,
+  CheckCircle, User, Calendar,
+  Brain, FileText, LayoutDashboard, Database, Settings,
+  HelpCircle, LogOut, Filter, Loader2
 } from 'lucide-react';
+import { getExamResults, ExamStudentResult } from '../services/examService';
+import { toast } from 'sonner';
 
 const examInfo = {
   'exam-4': {
@@ -154,6 +156,24 @@ export function ExamStudentsListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeSection, setActiveSection] = useState('results');
+  const [students, setStudents] = useState<ExamStudentResult[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadResults = async () => {
+      if (!examId) return;
+      try {
+        setIsLoading(true);
+        const data = await getExamResults(Number(examId));
+        setStudents(data);
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to load exam results');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadResults();
+  }, [examId]);
 
   const exam = examInfo[examId as keyof typeof examInfo];
 
@@ -168,18 +188,18 @@ export function ExamStudentsListPage() {
     { id: 'help', label: 'Help & Support', icon: HelpCircle },
   ];
 
-  const filteredStudents = mockStudents.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         student.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || student.status === filterStatus;
+  const filteredStudents = students.filter(student => {
+    const matchesSearch = student.studentName.toLowerCase().includes(searchQuery.toLowerCase());
+    const studentStatus = student.cheatingStatus === 'pending' ? 'pending' : (student.finalScore >= 90 ? 'excellent' : student.finalScore >= 80 ? 'good' : student.finalScore >= 70 ? 'average' : 'below-average');
+    const matchesFilter = filterStatus === 'all' || studentStatus === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
-  const avgScore = (mockStudents.reduce((sum, s) => sum + s.score, 0) / mockStudents.length).toFixed(1);
-  const totalFlags = mockStudents.reduce((sum, s) => sum + s.flagsCount, 0);
-  const passCount = mockStudents.filter(s => s.score >= 60).length;
-  const passRate = ((passCount / mockStudents.length) * 100).toFixed(0);
-  const pendingCount = mockStudents.filter(s => s.gradeStatus === 'pending').length;
+  const avgScore = students.length > 0 ? (students.reduce((sum, s) => sum + s.finalScore, 0) / students.length).toFixed(1) : '0.0';
+  const totalFlags = students.reduce((sum, s) => sum + s.totalViolations, 0);
+  const passCount = students.filter(s => s.finalScore >= 60).length;
+  const passRate = students.length > 0 ? ((passCount / students.length) * 100).toFixed(0) : '0';
+  const pendingCount = students.filter(s => s.cheatingStatus === 'pending').length;
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#0F111A' }}>
@@ -450,7 +470,7 @@ export function ExamStudentsListPage() {
                   </div>
                 </div>
                 <div className="text-white text-3xl mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  {mockStudents.length}
+                  {students.length}
                 </div>
                 <div className="text-gray-400 text-sm">Total Students</div>
               </div>
@@ -552,141 +572,130 @@ export function ExamStudentsListPage() {
 
               {/* Table Body */}
               <div>
-                {filteredStudents.map((student, index) => {
-                  const status = statusConfig[student.gradeStatus === 'pending' ? 'pending' : student.status];
-                  const isPending = student.gradeStatus === 'pending';
-                  return (
-                    <div
-                      key={student.id}
-                      onClick={() => {
-                        if (isPending) {
-                          navigate(`/instructor/review-exam/${examId}/${student.id}`);
-                        } else {
-                          navigate(`/instructor/student-result/${examId}/${student.id}`);
-                        }
-                      }}
-                      className={`grid grid-cols-12 gap-4 px-6 py-3.5 cursor-pointer transition-all duration-200 hover:bg-white/5 group ${
-                        index !== filteredStudents.length - 1 ? 'border-b' : ''
-                      }`}
-                      style={{
-                        borderColor: 'rgba(255, 255, 255, 0.05)'
-                      }}
-                    >
-                      {/* Student Info */}
-                      <div className="col-span-3 flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                          <User className="w-5 h-5 text-white" />
+                {isLoading ? (
+                  <div className="p-8 flex justify-center items-center text-gray-400">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                  </div>
+                ) : filteredStudents.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400" style={{ fontFamily: 'Inter, sans-serif' }}>
+                    No students found matching your search or filters.
+                  </div>
+                ) : (
+                  filteredStudents.map((student, index) => {
+                    const mappedStatus = student.cheatingStatus === 'pending' ? 'pending' : (student.finalScore >= 90 ? 'excellent' : student.finalScore >= 80 ? 'good' : student.finalScore >= 70 ? 'average' : 'below-average');
+                    const status = statusConfig[mappedStatus as keyof typeof statusConfig] || statusConfig.average;
+                    const isPending = student.cheatingStatus === 'pending';
+                    return (
+                      <div
+                        key={student.studentId}
+                        onClick={() => {
+                          if (isPending) {
+                            navigate(`/instructor/review-exam/${examId}/${student.studentId}`);
+                          } else {
+                            navigate(`/instructor/student-result/${examId}/${student.studentId}`);
+                          }
+                        }}
+                        className={`grid grid-cols-12 gap-4 px-6 py-3.5 cursor-pointer transition-all duration-200 hover:bg-white/5 group ${
+                          index !== filteredStudents.length - 1 ? 'border-b' : ''
+                        }`}
+                        style={{
+                          borderColor: 'rgba(255, 255, 255, 0.05)'
+                        }}
+                      >
+                        {/* Student Info */}
+                        <div className="col-span-3 flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <User className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <h3 
+                              className="text-white text-sm truncate group-hover:text-blue-400 transition" 
+                              style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
+                            >
+                              {student.studentName}
+                            </h3>
+                            <span className="text-gray-400 text-xs truncate">ID: {student.studentId}</span>
+                          </div>
                         </div>
-                        <div className="flex flex-col min-w-0">
-                          <h3 
-                            className="text-white text-sm truncate group-hover:text-blue-400 transition" 
-                            style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}
-                          >
-                            {student.name}
-                          </h3>
-                          <span className="text-gray-400 text-xs truncate">{student.email}</span>
-                        </div>
-                      </div>
 
-                      {/* Time & Duration */}
-                      <div className="col-span-2 flex flex-col gap-1 justify-center">
-                        <div className="flex items-center gap-1.5 text-gray-300">
-                          <Clock className="w-3.5 h-3.5 text-gray-400" />
-                          <span className="text-xs" style={{ fontFamily: 'Inter, sans-serif' }}>
-                            {student.startTime} - {student.submitTime}
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-400 ml-5">Duration: {student.duration}</span>
-                      </div>
-
-                      {/* Score */}
-                      <div className="col-span-2 flex items-center">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center border ${
-                            student.score >= 90 ? 'bg-green-500/20 border-green-500/50' :
-                            student.score >= 80 ? 'bg-blue-500/20 border-blue-500/50' :
-                            student.score >= 70 ? 'bg-yellow-500/20 border-yellow-500/50' :
-                            'bg-orange-500/20 border-orange-500/50'
-                          }`}>
-                            <span className={`text-lg ${
-                              student.score >= 90 ? 'text-green-400' :
-                              student.score >= 80 ? 'text-blue-400' :
-                              student.score >= 70 ? 'text-yellow-400' :
-                              'text-orange-400'
-                            }`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                              {student.score}
+                        {/* Time & Duration (Placeholder since API doesn't provide it directly in this view) */}
+                        <div className="col-span-2 flex flex-col gap-1 justify-center">
+                          <div className="flex items-center gap-1.5 text-gray-300">
+                            <Clock className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-xs" style={{ fontFamily: 'Inter, sans-serif' }}>
+                              -
                             </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-white text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                              {student.score}%
-                            </span>
-                            <span className="text-xs text-gray-400">score</span>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Answers */}
-                      <div className="col-span-2 flex items-center gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-7 h-7 rounded-lg bg-green-500/20 border border-green-500/50 flex items-center justify-center">
-                            <CheckCircle className="w-3.5 h-3.5 text-green-400" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-white text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                              {student.correctAnswers}
-                            </span>
-                            <span className="text-xs text-gray-400">correct</span>
+                        {/* Score */}
+                        <div className="col-span-2 flex items-center">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-12 h-12 rounded-lg flex items-center justify-center border ${
+                              student.finalScore >= 90 ? 'bg-green-500/20 border-green-500/50' :
+                              student.finalScore >= 80 ? 'bg-blue-500/20 border-blue-500/50' :
+                              student.finalScore >= 70 ? 'bg-yellow-500/20 border-yellow-500/50' :
+                              'bg-orange-500/20 border-orange-500/50'
+                            }`}>
+                              <span className={`text-lg ${
+                                student.finalScore >= 90 ? 'text-green-400' :
+                                student.finalScore >= 80 ? 'text-blue-400' :
+                                student.finalScore >= 70 ? 'text-yellow-400' :
+                                'text-orange-400'
+                              }`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
+                                {student.finalScore}
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-white text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                                {student.finalScore}%
+                              </span>
+                              <span className="text-xs text-gray-400">score</span>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-7 h-7 rounded-lg bg-red-500/20 border border-red-500/50 flex items-center justify-center">
-                            <span className="text-red-400 text-xs" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>✕</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-white text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                              {student.wrongAnswers}
-                            </span>
-                            <span className="text-xs text-gray-400">wrong</span>
-                          </div>
+
+                        {/* Answers Placeholder */}
+                        <div className="col-span-2 flex items-center gap-3">
+                          <span className="text-gray-400 text-sm">See details</span>
+                        </div>
+
+                        {/* Status */}
+                        <div className="col-span-2 flex items-center">
+                          {isPending ? (
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-yellow-500/20 border-yellow-500/50 animate-pulse">
+                              <Clock className="w-3.5 h-3.5 text-yellow-400" />
+                              <span className="text-xs text-yellow-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+                                Pending Review
+                              </span>
+                            </div>
+                          ) : (
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${status.bg} ${status.border}`}>
+                              <span className={`text-xs ${status.color}`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
+                                {status.label}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Flags */}
+                        <div className="col-span-1 flex items-center justify-center">
+                          {student.totalViolations > 0 ? (
+                            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/20 border border-red-500/30">
+                              <span className="text-red-400 text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                                {student.totalViolations}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 border border-green-500/30">
+                              <CheckCircle className="w-4 h-4 text-green-400" />
+                            </div>
+                          )}
                         </div>
                       </div>
-
-                      {/* Status */}
-                      <div className="col-span-2 flex items-center">
-                        {isPending ? (
-                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-yellow-500/20 border-yellow-500/50 animate-pulse">
-                            <Clock className="w-3.5 h-3.5 text-yellow-400" />
-                            <span className="text-xs text-yellow-400" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                              Pending Review
-                            </span>
-                          </div>
-                        ) : (
-                          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${status.bg} ${status.border}`}>
-                            <span className={`text-xs ${status.color}`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                              {status.label}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Flags */}
-                      <div className="col-span-1 flex items-center justify-center">
-                        {student.flagsCount > 0 ? (
-                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/20 border border-red-500/30">
-                            <span className="text-red-400 text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                              {student.flagsCount}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 border border-green-500/30">
-                            <CheckCircle className="w-4 h-4 text-green-400" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>

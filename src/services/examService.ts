@@ -311,3 +311,105 @@ export async function submitBulkAnswers(attemptId: number, input: BulkAnswerRequ
 
   return (await response.json()) as BulkAnswerResponse;
 }
+
+export interface ExamStudentResult {
+  studentId: number;
+  studentName: string;
+  finalScore: number;
+  cheatingStatus: string;
+  totalViolations: number;
+}
+
+export interface StudentWrittenAnswer {
+  answerId: number;
+  questionId: number;
+  questionText: string;
+  questionImageUrl: string | null;
+  points: number;
+  orderNumber: number;
+  answerText: string;
+  score: number;
+  instructorFeedback: string | null;
+  isManuallyGraded: boolean;
+  timeSpentSeconds: number;
+}
+
+export interface StudentWrittenAnswersResponse {
+  examId: number;
+  examTitle: string;
+  studentId: number;
+  studentName: string;
+  attemptId: number;
+  attemptStatus: string;
+  writtenAnswers: StudentWrittenAnswer[];
+  summary: {
+    totalWrittenQuestions: number;
+    gradedCount: number;
+    ungradedCount: number;
+    totalWrittenPoints: number;
+    awardedPoints: number;
+  };
+}
+
+export interface GradeAnswerRequestItem {
+  answerId: number;
+  score: number;
+  feedback: string;
+}
+
+export interface GradeWrittenAnswersRequest {
+  grades: GradeAnswerRequestItem[];
+}
+
+export interface GradedAnswerResponseItem {
+  answerId: number;
+  questionId: number;
+  score: number;
+  feedback: string;
+}
+
+export interface GradeWrittenAnswersResponse {
+  examId: number;
+  studentId: number;
+  attemptId: number;
+  gradedAnswers: GradedAnswerResponseItem[];
+  attemptScoreSummary: {
+    mcqScore: number;
+    manualScore: number;
+    finalScore: number;
+    isAttemptFullyGraded: boolean;
+    attemptStatus: string;
+  };
+  gradedAt: string;
+}
+
+export async function getExamResults(examId: number): Promise<ExamStudentResult[]> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/exams/${examId}/results`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as ExamStudentResult[];
+}
+
+export async function getStudentWrittenAnswers(examId: number, studentId: number): Promise<StudentWrittenAnswersResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/exams/${examId}/students/${studentId}/written-answers`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as StudentWrittenAnswersResponse;
+}
+
+export async function gradeStudentWrittenAnswers(examId: number, studentId: number, input: GradeWrittenAnswersRequest): Promise<GradeWrittenAnswersResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/exams/${examId}/students/${studentId}/written-answers/grade`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as GradeWrittenAnswersResponse;
+}
