@@ -191,13 +191,20 @@ export function StudentWaitingRoom() {
 
           {/* Instructions */}
           <div className="mt-8 pt-8 border-t border-gray-200 text-left">
-            <h3 className="text-gray-900 mb-3">Important Instructions</h3>
+            <h3 className="text-gray-900 mb-3">Important Instructions & Rules</h3>
+            <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-4">
+              <h4 className="text-red-900 font-semibold mb-2">Anti-Cheating Policy</h4>
+              <ul className="space-y-2 text-red-800 text-sm list-disc list-inside">
+                <li>You must remain in <strong>Full-Screen mode</strong> at all times. Exiting full-screen is a violation.</li>
+                <li><strong>Do NOT switch tabs or open other applications</strong>. Doing so will be recorded as a violation.</li>
+                <li>Your webcam will be monitored by an AI detection system for suspicious behavior (e.g., looking away, multiple people, using phones).</li>
+                <li>Any cheating attempts will be automatically flagged and logged.</li>
+              </ul>
+            </div>
             <ul className="space-y-2 text-gray-600">
               <li>• Ensure you are in a quiet, well-lit environment</li>
               <li>• Keep your face visible to the camera at all times</li>
               <li>• Do not leave your seat during the exam</li>
-              <li>• Close all unnecessary browser tabs and applications</li>
-              <li>• Keep your phone away from your workspace</li>
             </ul>
           </div>
         </div>

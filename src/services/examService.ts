@@ -413,3 +413,23 @@ export async function gradeStudentWrittenAnswers(examId: number, studentId: numb
   }
   return (await response.json()) as GradeWrittenAnswersResponse;
 }
+
+export interface ViolationRequest {
+  questionId: number;
+  violationType: string;
+  description: string;
+  durationSeconds: number;
+  screenshotUrl?: string;
+  metadata?: Record<string, string>;
+}
+
+export async function submitViolation(attemptId: number, input: ViolationRequest): Promise<void> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/exam-attempts/${attemptId}/violations`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    await handleError(response);
+  }
+}

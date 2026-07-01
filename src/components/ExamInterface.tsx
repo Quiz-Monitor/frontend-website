@@ -1,18 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Clock, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Camera, Monitor, Shield, Flag, Eye, Brain, X, AlertCircle, Loader2, Trophy } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { getExamQuestions, submitBulkAnswers, ExamAttemptQuestionsResponse, Question, Choice, SubmitAnswerRequest, BulkAnswerResponse } from '../services/examService';
+import { getExamQuestions, submitBulkAnswers, ExamAttemptQuestionsResponse, Question, Choice, SubmitAnswerRequest, BulkAnswerResponse, submitViolation } from '../services/examService';
 import { toast } from 'sonner';
 
 // Mock questions removed
 
-interface AIAlert {
-  id: number;
-  message: string;
-  type: 'warning' | 'critical';
-  timestamp: Date;
-}
+
 
 export function ExamInterface() {
   const navigate = useNavigate();
@@ -29,10 +24,17 @@ export function ExamInterface() {
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
-  const [aiAlerts, setAiAlerts] = useState<AIAlert[]>([]);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<BulkAnswerResponse | null>(null);
   const [showScoreModal, setShowScoreModal] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const aiSessionId = useRef<string | null>(null);
+  const currentQuestionRef = useRef(0);
+
+  useEffect(() => {
+    currentQuestionRef.current = currentQuestionIndex;
+  }, [currentQuestionIndex]);
 
   useEffect(() => {
     const initExam = async () => {
@@ -78,31 +80,133 @@ export function ExamInterface() {
       });
     }, 1000);
 
-    // Simulate AI violations (for demo)
-    const violations = [
-      { message: 'Multiple faces detected in camera feed', type: 'warning' as const, delay: 15000 },
-      { message: 'Tab switch detected - Suspicious activity logged', type: 'critical' as const, delay: 35000 },
-      { message: 'Mobile device detected in frame', type: 'critical' as const, delay: 55000 },
-      { message: 'Looking away from screen - Attention warning', type: 'warning' as const, delay: 75000 }
-    ];
+    return () => clearInterval(timer);
+  }, [isSubmitting]);
 
-    const timeouts = violations.map(v => 
-      setTimeout(() => {
-        const newAlert: AIAlert = {
-          id: Date.now(),
-          message: v.message,
-          type: v.type,
-          timestamp: new Date()
-        };
-        setAiAlerts(prev => [newAlert, ...prev].slice(0, 5));
-      }, v.delay)
-    );
+  // Real AI Integration & DOM Tracking
+  useEffect(() => {
+    if (!attemptData) return;
+
+    let aiTimer: NodeJS.Timeout;
+    let stream: MediaStream | null = null;
+    const currentAttemptId = attemptData.attemptId;
+
+    const startAISession = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/session/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+        if (res.ok) {
+          const data = await res.json();
+          aiSessionId.current = data.session_id;
+        }
+      } catch (e) {
+        console.error('Failed to start AI session', e);
+      }
+    };
+    
+    const stopAISession = async () => {
+      try {
+        await fetch('http://localhost:8000/session/stop', { method: 'POST' });
+      } catch (e) {
+        console.error('Failed to stop AI session', e);
+      }
+    };
+
+    const initCamera = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+        
+        await startAISession();
+
+        // 1 frame every 2 seconds
+        aiTimer = setInterval(async () => {
+          if (!videoRef.current || !canvasRef.current || !aiSessionId.current) return;
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          if (video.videoWidth === 0) return;
+
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
+          try {
+            const inferRes = await fetch('http://localhost:8000/infer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ image_b64: base64Image })
+            });
+            if (inferRes.ok) {
+              const data = await inferRes.json();
+              if (data.events && data.events.length > 0) {
+                for (const event of data.events) {
+                  let mappedType = '';
+                  if (event.type === 'gaze_away') mappedType = 'eye_away';
+                  else if (event.type === 'multiple_persons') mappedType = 'multiple_person';
+                  else if (event.type === 'suspicious_object') mappedType = 'object_detected';
+
+                  if (mappedType) {
+                    await submitViolation(currentAttemptId, {
+                      questionId: questions[currentQuestionRef.current]?.questionId || 0,
+                      violationType: mappedType,
+                      description: `AI detected: ${event.type}`,
+                      durationSeconds: 0
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error('AI infer failed', e);
+          }
+        }, 2000);
+
+      } catch (e) {
+        console.error('Camera init failed', e);
+      }
+    };
+
+    initCamera();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        submitViolation(currentAttemptId, {
+          questionId: questions[currentQuestionRef.current]?.questionId || 0,
+          violationType: 'tab_switch',
+          description: 'User switched tabs or minimized window',
+          durationSeconds: 0
+        }).catch(console.error);
+      }
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        submitViolation(currentAttemptId, {
+          questionId: questions[currentQuestionRef.current]?.questionId || 0,
+          violationType: 'tab_switch',
+          description: 'User exited fullscreen mode',
+          durationSeconds: 0
+        }).catch(console.error);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     return () => {
-      clearInterval(timer);
-      timeouts.forEach(t => clearTimeout(t));
+      clearInterval(aiTimer);
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      stopAISession();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, []);
+  }, [attemptData, questions]);
 
   const handleAnswerSelect = (choiceId: number) => {
     const currentQuestionData = questions[currentQuestionIndex];
@@ -232,49 +336,14 @@ export function ExamInterface() {
       <div className="fixed top-0 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none animate-pulse" />
       <div className="fixed bottom-0 left-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl pointer-events-none animate-pulse" style={{ animationDelay: '1s' }} />
 
-      {/* Top AI Alert Banner */}
-      {aiAlerts.length > 0 && (
-        <div className={`fixed top-0 left-0 right-0 z-50 border-b animate-pulse ${
-          aiAlerts[0].type === 'critical' 
-            ? 'bg-red-500/20 border-red-500/50' 
-            : 'bg-yellow-500/20 border-yellow-500/50'
-        }`} style={{ backdropFilter: 'blur(20px)' }}>
-          <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                aiAlerts[0].type === 'critical' ? 'bg-red-500/20' : 'bg-yellow-500/20'
-              }`}>
-                <AlertTriangle className={`w-5 h-5 ${
-                  aiAlerts[0].type === 'critical' ? 'text-red-400' : 'text-yellow-400'
-                }`} />
-              </div>
-              <div>
-                <div className={`text-xs uppercase tracking-wider mb-0.5 ${
-                  aiAlerts[0].type === 'critical' ? 'text-red-400' : 'text-yellow-400'
-                }`} style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                  {aiAlerts[0].type === 'critical' ? '⚠️ CRITICAL VIOLATION' : '⚡ AI WARNING'}
-                </div>
-                <div className="text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                  {aiAlerts[0].message}
-                </div>
-              </div>
-            </div>
-            <button 
-              onClick={() => setAiAlerts(prev => prev.slice(1))}
-              className="text-gray-400 hover:text-white transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* Header */}
       <header className="relative z-10 border-b flex-shrink-0" style={{ 
         backgroundColor: 'rgba(255, 255, 255, 0.03)',
         backdropFilter: 'blur(20px)',
         borderColor: 'rgba(255, 255, 255, 0.1)',
-        marginTop: aiAlerts.length > 0 ? '72px' : '0'
+        marginTop: '0'
       }}>
         <div className="max-w-[1600px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -489,7 +558,7 @@ export function ExamInterface() {
                     <div className="flex items-center gap-2">
                       <Camera className="w-4 h-4 text-blue-400" />
                       <span className="text-white text-sm" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                        AI Monitoring
+                        AI Monitoring Active
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -500,17 +569,9 @@ export function ExamInterface() {
                     </div>
                   </div>
                 </div>
-                <div className="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center relative">
-                  <Camera className="w-16 h-16 text-gray-600" />
-                  <div className="absolute inset-0 border-2 border-blue-500/30 animate-pulse" />
-                  <div className="absolute bottom-3 left-3 right-3">
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/50" style={{ backdropFilter: 'blur(10px)' }}>
-                      <Eye className="w-4 h-4 text-green-400" />
-                      <span className="text-green-400 text-xs" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
-                        Face Detected
-                      </span>
-                    </div>
-                  </div>
+                <div className="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center relative overflow-hidden">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                  <canvas ref={canvasRef} className="hidden" />
                 </div>
               </div>
 
@@ -567,49 +628,7 @@ export function ExamInterface() {
                 </div>
               </div>
 
-              {/* AI Alerts History */}
-              {aiAlerts.length > 0 && (
-                <div className="rounded-2xl border p-5" style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                  backdropFilter: 'blur(10px)',
-                  borderColor: 'rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Shield className="w-4 h-4 text-blue-400" />
-                    <h3 className="text-white" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                      Activity Log
-                    </h3>
-                  </div>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {aiAlerts.map(alert => (
-                      <div 
-                        key={alert.id}
-                        className={`p-3 rounded-lg border ${
-                          alert.type === 'critical' 
-                            ? 'bg-red-500/10 border-red-500/30' 
-                            : 'bg-yellow-500/10 border-yellow-500/30'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
-                            alert.type === 'critical' ? 'text-red-400' : 'text-yellow-400'
-                          }`} />
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs leading-relaxed ${
-                              alert.type === 'critical' ? 'text-red-300' : 'text-yellow-300'
-                            }`} style={{ fontFamily: 'Inter, sans-serif' }}>
-                              {alert.message}
-                            </p>
-                            <p className="text-gray-500 text-xs mt-1">
-                              {alert.timestamp.toLocaleTimeString()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         </div>
