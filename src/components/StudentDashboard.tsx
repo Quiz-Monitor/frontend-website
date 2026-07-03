@@ -30,7 +30,7 @@ import {
 	Tooltip,
 	ResponsiveContainer,
 } from "recharts";
-import { NotificationsButton } from "./NotificationsButton";
+import { StudentSidebar } from "./StudentSidebar";
 import {
 	joinExam,
 	getStudentExams,
@@ -66,43 +66,7 @@ export function StudentDashboard() {
 	const [examCode, setExamCode] = useState("");
 	const [isJoining, setIsJoining] = useState(false);
 
-	// Mock notifications
-	const notifications = [
-		{
-			id: 1,
-			type: "exam",
-			title: "Exam Reminder",
-			message: "Advanced Mathematics exam starts in 2 days",
-			time: "2 hours ago",
-			unread: true,
-		},
-		{
-			id: 2,
-			type: "result",
-			title: "Result Published",
-			message: "Your English Literature result is now available",
-			time: "5 hours ago",
-			unread: true,
-		},
-		{
-			id: 3,
-			type: "announcement",
-			title: "System Update",
-			message: "Platform maintenance scheduled for tonight",
-			time: "1 day ago",
-			unread: false,
-		},
-		{
-			id: 4,
-			type: "exam",
-			title: "New Exam Added",
-			message: "Machine Learning exam has been scheduled",
-			time: "2 days ago",
-			unread: false,
-		},
-	];
 
-	const unreadCount = notifications.filter((n) => n.unread).length;
 
 	const [studentExams, setStudentExams] = useState<StudentExam[]>([]);
 	const [isLoadingExams, setIsLoadingExams] = useState(true);
@@ -187,12 +151,7 @@ export function StudentDashboard() {
 		}
 	};
 
-	const mainNavItems = [
-		{ id: "dashboard", label: "Dashboard", icon: Home },
-		{ id: "exams", label: "My Exams", icon: FileText },
-		{ id: "history", label: "History", icon: History },
-		{ id: "profile", label: "Profile", icon: User },
-	];
+
 
 	// Calculate stats
 	const totalExams = completedExams.length;
@@ -219,96 +178,16 @@ export function StudentDashboard() {
 				style={{ animationDelay: "1s" }}
 			/>
 
-			{/* Sidebar - SMALL WITH ICONS ONLY */}
-			<aside
-				className="w-[70px] flex-shrink-0 border-r relative z-10"
-				style={{
-					backgroundColor: "rgba(15, 17, 26, 0.6)",
-					backdropFilter: "blur(20px)",
-					borderColor: "rgba(255, 255, 255, 0.08)",
-				}}
-			>
-				<div className="h-full flex flex-col">
-					{/* Header - Brand Logo */}
-					<div className="px-3 pt-8 pb-6 flex justify-center">
-						<button onClick={() => navigate("/")} className="group">
-							<div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:shadow-lg group-hover:shadow-blue-500/40 transition-all duration-300">
-								<Brain className="w-6 h-6 text-white" strokeWidth={2.5} />
-							</div>
-						</button>
-					</div>
-
-					{/* Main Navigation */}
-					<nav className="flex-1 px-2 pt-2">
-						<div className="space-y-2">
-							{mainNavItems.map((item) => {
-								const Icon = item.icon;
-								const isActive = activeSection === item.id;
-								return (
-									<button
-										key={item.id}
-										onClick={() => {
-											setActiveSection(item.id);
-											if (item.id === "dashboard") {
-												navigate("/student");
-											} else if (item.id === "exams") {
-												navigate("/student/my-exams");
-											} else if (item.id === "history") {
-												navigate("/student/history");
-											} else if (item.id === "profile") {
-												navigate("/student/profile");
-											}
-										}}
-										className={`w-full flex items-center justify-center p-3 rounded-lg transition-all duration-200 group relative ${
-											isActive
-												? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30"
-												: "text-gray-400 hover:text-white hover:bg-white/5"
-										}`}
-										title={item.label}
-									>
-										<Icon
-											className={`w-5 h-5 transition-all duration-200 ${
-												isActive
-													? "text-white"
-													: "text-gray-400 group-hover:text-blue-400"
-											}`}
-											strokeWidth={isActive ? 2.5 : 1.5}
-										/>
-									</button>
-								);
-							})}
-						</div>
-					</nav>
-
-					{/* User Profile Footer */}
-					<div
-						className="p-2 border-t"
-						style={{ borderColor: "rgba(255, 255, 255, 0.08)" }}
-					>
-						<div className="flex flex-col items-center gap-3">
-							<div className="relative">
-								<div className="w-11 h-11 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center cursor-pointer hover:shadow-lg hover:shadow-blue-500/30 transition-all">
-									<span className="text-white text-sm">MA</span>
-								</div>
-								<div
-									className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2"
-									style={{ borderColor: "#0F111A" }}
-								/>
-							</div>
-							<button
-								onClick={() => navigate("/login")}
-								className="p-2 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition"
-								title="Logout"
-							>
-								<LogOut className="w-4 h-4" strokeWidth={1.5} />
-							</button>
-						</div>
-					</div>
-				</div>
-			</aside>
+			<StudentSidebar />
 
 			{/* Main Content */}
-			<div className="flex-1 relative z-10 overflow-hidden flex flex-col">
+			<div 
+				className="flex-1 relative z-10 overflow-hidden flex flex-col"
+				style={{ 
+					marginLeft: 'var(--sidebar-width)',
+					transition: 'margin-left 0.25s cubic-bezier(0.4,0,0.2,1)'
+				}}
+			>
 				{/* Header */}
 				<header
 					className="border-b flex-shrink-0"
@@ -336,9 +215,6 @@ export function StudentDashboard() {
 							</div>
 
 							<div className="flex items-center gap-4">
-								{/* Notifications Button */}
-								<NotificationsButton />
-
 								<div className="px-4 py-2 rounded-xl border border-blue-500/30 bg-blue-500/10">
 									<div className="flex items-center gap-2">
 										<div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />

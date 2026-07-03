@@ -1,22 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
-  ArrowLeft, Clock, Award, AlertTriangle, CheckCircle, User, Brain, 
-  FileText, LayoutDashboard, Database, Settings, HelpCircle, LogOut,
-  Send, Save, Loader2, MessageSquare, Star, BookOpen, Hash
+  ArrowLeft, User, LayoutDashboard, Database, Settings, HelpCircle, 
+  Loader2, BookOpen
 } from 'lucide-react';
 import { 
   getStudentWrittenAnswers, 
   gradeStudentWrittenAnswers,
-  StudentWrittenAnswersResponse,
-  StudentWrittenAnswer
+  StudentWrittenAnswersResponse
 } from '../services/examService';
 import { toast } from 'sonner';
+import { InstructorSidebar } from './InstructorSidebar';
 
 export function InstructorReviewExamPage() {
   const navigate = useNavigate();
   const { examId, studentId } = useParams();
-  const [activeSection, setActiveSection] = useState('results');
   const [data, setData] = useState<StudentWrittenAnswersResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -25,17 +23,6 @@ export function InstructorReviewExamPage() {
   // Per-answer state: score and feedback
   const [scores, setScores] = useState<Record<number, number>>({});
   const [feedbacks, setFeedbacks] = useState<Record<number, string>>({});
-
-  const mainNavItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'exams', label: 'My Exams', icon: FileText },
-    { id: 'results', label: 'Results Database', icon: Database },
-  ];
-
-  const utilityItems = [
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'help', label: 'Help & Support', icon: HelpCircle },
-  ];
 
   useEffect(() => {
     const load = async () => {
@@ -126,126 +113,16 @@ export function InstructorReviewExamPage() {
       <div className="fixed top-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="fixed bottom-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Sidebar */}
-      <aside className="w-[250px] flex-shrink-0 border-r relative z-10" style={{ 
-        backgroundColor: 'rgba(15, 17, 26, 0.6)',
-        backdropFilter: 'blur(20px)',
-        borderColor: 'rgba(255, 255, 255, 0.08)'
-      }}>
-        <div className="h-full flex flex-col">
-          {/* Header - Brand Logo */}
-          <div className="px-6 pt-8 pb-6">
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center gap-3 group"
-            >
-              <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:shadow-lg group-hover:shadow-blue-500/40 transition-all duration-300">
-                <Brain className="w-5 h-5 text-white" strokeWidth={2.5} />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-white tracking-tight" style={{ fontFamily: 'Inter, sans-serif' }}>
-                  ExamGuard
-                </span>
-                <span className="text-xs text-blue-400">AI Platform</span>
-              </div>
-            </button>
-          </div>
-
-          {/* Main Navigation */}
-          <nav className="flex-1 px-4 pt-2">
-            <div className="space-y-1">
-              {mainNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveSection(item.id);
-                      if (item.id === 'dashboard') navigate('/instructor');
-                      else if (item.id === 'exams') navigate('/instructor/exams');
-                      else if (item.id === 'results') navigate('/instructor/results-database');
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
-                      isActive
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon 
-                      className={`w-5 h-5 transition-all duration-200 ${
-                        isActive ? 'text-white' : 'text-gray-400 group-hover:text-blue-400'
-                      }`} 
-                      strokeWidth={isActive ? 2.5 : 1.5}
-                    />
-                    <span 
-                      className="text-sm"
-                      style={{ fontFamily: 'Inter, sans-serif', fontWeight: isActive ? 600 : 400 }}
-                    >
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="my-6 h-px" style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }} />
-
-            <div className="space-y-1">
-              {utilityItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveSection(item.id);
-                      if (item.id === 'settings') navigate('/instructor/settings');
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
-                      isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5" strokeWidth={1.5} />
-                    <span className="text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-
-          {/* User Profile Footer */}
-          <div className="p-4 border-t" style={{ borderColor: 'rgba(255, 255, 255, 0.08)' }}>
-            <div className="flex items-center gap-3 px-3 py-3 rounded-lg group hover:bg-white/5 transition cursor-pointer">
-              <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm">JD</span>
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2" style={{ borderColor: '#0F111A' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-white text-sm truncate" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                  Dr. John Davis
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-400">Pro Plan</span>
-                  <div className="px-1.5 py-0.5 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded text-xs text-yellow-400 border border-yellow-500/30">
-                    PRO
-                  </div>
-                </div>
-              </div>
-              <button className="p-2 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition">
-                <LogOut className="w-4 h-4" strokeWidth={1.5} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </aside>
+      <InstructorSidebar />
 
       {/* Main Content */}
-      <div className="flex-1 relative z-10 overflow-y-auto">
+      <div 
+        className="flex-1 relative z-10 overflow-hidden flex flex-col"
+        style={{ 
+          marginLeft: 'var(--sidebar-width)',
+          transition: 'margin-left 0.25s cubic-bezier(0.4,0,0.2,1)'
+        }}
+      >
         {/* Sticky Header */}
         <header className="border-b sticky top-0 z-20" style={{ 
           backgroundColor: 'rgba(15, 17, 26, 0.95)',
