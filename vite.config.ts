@@ -56,5 +56,13 @@
     server: {
       port: 3000,
       open: true,
+      proxy: {
+        '/ai': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/ai/, ''),
+          ws: true,
+        },
+      },
     },
   });

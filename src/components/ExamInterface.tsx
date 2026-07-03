@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Clock, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Camera, Monitor, Shield, Flag, Eye, Brain, X, AlertCircle, Loader2, Trophy } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { getExamQuestions, submitBulkAnswers, ExamAttemptQuestionsResponse, Question, Choice, SubmitAnswerRequest, BulkAnswerResponse, submitViolation } from '../services/examService';
+import { aiProctorService } from '../services/aiProctorService';
+import { USE_WEBSOCKET } from '../config/ai';
 import { toast } from 'sonner';
 
 // Mock questions removed
@@ -89,27 +91,8 @@ export function ExamInterface() {
 
     let aiTimer: NodeJS.Timeout;
     let stream: MediaStream | null = null;
+    let isActive = true;
     const currentAttemptId = attemptData.attemptId;
-
-    const startAISession = async () => {
-      try {
-        const res = await fetch('http://localhost:8000/session/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-        if (res.ok) {
-          const data = await res.json();
-          aiSessionId.current = data.session_id;
-        }
-      } catch (e) {
-        console.error('Failed to start AI session', e);
-      }
-    };
-    
-    const stopAISession = async () => {
-      try {
-        await fetch('http://localhost:8000/session/stop', { method: 'POST' });
-      } catch (e) {
-        console.error('Failed to stop AI session', e);
-      }
-    };
 
     const initCamera = async () => {
       try {
@@ -118,11 +101,35 @@ export function ExamInterface() {
           videoRef.current.srcObject = stream;
         }
         
-        await startAISession();
+        const sessionId = await aiProctorService.startSession();
+        if (!sessionId) return;
+        aiSessionId.current = sessionId;
 
-        // 1 frame every 2 seconds
+        aiProctorService.onEvents(async (events) => {
+          for (const event of events) {
+            let mappedType = '';
+            if (event.type === 'gaze_away') mappedType = 'eye_away';
+            else if (event.type === 'multiple_persons') mappedType = 'multiple_person';
+            else if (event.type === 'suspicious_object') mappedType = 'object_detected';
+
+            if (mappedType) {
+              await submitViolation(currentAttemptId, {
+                questionId: questions[currentQuestionRef.current]?.questionId || 0,
+                violationType: mappedType,
+                description: `AI detected: ${event.type}`,
+                durationSeconds: 0
+              });
+            }
+          }
+        });
+
+        if (USE_WEBSOCKET) {
+          aiProctorService.connect(sessionId);
+        }
+
+        // 1 frame every 2 seconds (or higher frequency later)
         aiTimer = setInterval(async () => {
-          if (!videoRef.current || !canvasRef.current || !aiSessionId.current) return;
+          if (!isActive || !videoRef.current || !canvasRef.current || !aiSessionId.current) return;
           const video = videoRef.current;
           const canvas = canvasRef.current;
           if (video.videoWidth === 0) return;
@@ -134,34 +141,28 @@ export function ExamInterface() {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           
           const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
-          try {
-            const inferRes = await fetch('http://localhost:8000/infer', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ image_b64: base64Image })
-            });
-            if (inferRes.ok) {
-              const data = await inferRes.json();
-              if (data.events && data.events.length > 0) {
-                for (const event of data.events) {
-                  let mappedType = '';
-                  if (event.type === 'gaze_away') mappedType = 'eye_away';
-                  else if (event.type === 'multiple_persons') mappedType = 'multiple_person';
-                  else if (event.type === 'suspicious_object') mappedType = 'object_detected';
+          
+          if (USE_WEBSOCKET) {
+            aiProctorService.sendFrame(base64Image);
+          } else {
+            const events = await aiProctorService.inferREST(base64Image);
+            if (events && events.length > 0) {
+              for (const event of events) {
+                let mappedType = '';
+                if (event.type === 'gaze_away') mappedType = 'eye_away';
+                else if (event.type === 'multiple_persons') mappedType = 'multiple_person';
+                else if (event.type === 'suspicious_object') mappedType = 'object_detected';
 
-                  if (mappedType) {
-                    await submitViolation(currentAttemptId, {
-                      questionId: questions[currentQuestionRef.current]?.questionId || 0,
-                      violationType: mappedType,
-                      description: `AI detected: ${event.type}`,
-                      durationSeconds: 0
-                    });
-                  }
+                if (mappedType) {
+                  await submitViolation(currentAttemptId, {
+                    questionId: questions[currentQuestionRef.current]?.questionId || 0,
+                    violationType: mappedType,
+                    description: `AI detected: ${event.type}`,
+                    durationSeconds: 0
+                  });
                 }
               }
             }
-          } catch (e) {
-            console.error('AI infer failed', e);
           }
         }, 2000);
 
@@ -198,11 +199,12 @@ export function ExamInterface() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     return () => {
+      isActive = false;
       clearInterval(aiTimer);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
-      stopAISession();
+      aiProctorService.stop();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
@@ -649,12 +651,27 @@ export function ExamInterface() {
               Submit Exam?
             </h3>
             <p className="text-gray-400 text-center mb-6">
-              You have answered {Object.keys(answers).length} out of {totalQuestions} questions.
-              {totalQuestions - Object.keys(answers).length > 0 && (
-                <span className="block mt-2 text-yellow-400">
-                  {totalQuestions - Object.keys(answers).length} questions remain unanswered.
-                </span>
-              )}
+              {(() => {
+                const currentQuestion = questions[currentQuestionIndex];
+                const currentHasAnswer = currentQuestion && (
+                  selectedChoices.length > 0 || answerText.trim().length > 0
+                );
+                // Count saved answers + current unsaved answer if it exists and isn't already saved
+                const savedCount = Object.keys(answers).length;
+                const currentIsSaved = currentQuestion && answers[currentQuestion.questionId] !== undefined;
+                const effectiveAnsweredCount = savedCount + (currentHasAnswer && !currentIsSaved ? 1 : 0);
+                const remaining = totalQuestions - effectiveAnsweredCount;
+                return (
+                  <>
+                    You have answered {effectiveAnsweredCount} out of {totalQuestions} questions.
+                    {remaining > 0 && (
+                      <span className="block mt-2 text-yellow-400">
+                        {remaining} question{remaining !== 1 ? 's' : ''} remain unanswered.
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
             </p>
             <div className="flex gap-3">
               <button
