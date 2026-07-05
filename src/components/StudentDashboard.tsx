@@ -34,22 +34,17 @@ import { StudentSidebar } from "./StudentSidebar";
 import {
 	joinExam,
 	getStudentExams,
+	getStudentStatistics,
+	getStudentSubmittedExams,
 	StudentExam,
+	StudentStatisticsResponse,
+	StudentSubmittedExam,
 } from "../services/examService";
 import { toast } from "sonner";
 
 // Types moved to examService.ts
 
-interface CompletedExam {
-	id: string;
-	name: string;
-	date: string;
-	score: number | null;
-	duration: string;
-	totalQuestions: number;
-	correctAnswers: number | null;
-	status: "graded" | "pending";
-}
+
 
 const performanceData = [
 	{ exam: "Exam 1", score: 65 },
@@ -69,57 +64,31 @@ export function StudentDashboard() {
 
 
 	const [studentExams, setStudentExams] = useState<StudentExam[]>([]);
+	const [statistics, setStatistics] = useState<StudentStatisticsResponse | null>(null);
+	const [recentActivity, setRecentActivity] = useState<StudentSubmittedExam[]>([]);
 	const [isLoadingExams, setIsLoadingExams] = useState(true);
 
-	const fetchExams = async () => {
+	const fetchDashboardData = async () => {
 		try {
 			setIsLoadingExams(true);
-			const exams = await getStudentExams();
+			const [exams, stats, submitted] = await Promise.all([
+				getStudentExams(),
+				getStudentStatistics(),
+				getStudentSubmittedExams()
+			]);
 			setStudentExams(exams);
+			setStatistics(stats);
+			setRecentActivity(submitted.exams);
 		} catch (error) {
-			toast.error("Failed to load exams");
+			toast.error("Failed to load dashboard data");
 		} finally {
 			setIsLoadingExams(false);
 		}
 	};
 
 	useEffect(() => {
-		fetchExams();
+		fetchDashboardData();
 	}, []);
-
-	// Mock data for completed exams
-	const completedExams: CompletedExam[] = [
-		{
-			id: "1",
-			name: "English Literature 101",
-			date: "Nov 28, 2024",
-			score: 92,
-			duration: "90 min",
-			totalQuestions: 20,
-			correctAnswers: 18,
-			status: "graded",
-		},
-		{
-			id: "2",
-			name: "Calculus II - Chapter Test",
-			date: "Nov 25, 2024",
-			score: 85,
-			duration: "75 min",
-			totalQuestions: 15,
-			correctAnswers: 13,
-			status: "graded",
-		},
-		{
-			id: "3",
-			name: "Physics Fundamentals",
-			date: "Nov 20, 2024",
-			score: null,
-			duration: "120 min",
-			totalQuestions: 25,
-			correctAnswers: null,
-			status: "pending",
-		},
-	];
 
 	const handleJoinExam = async () => {
 		if (!examCode.trim()) {
@@ -141,7 +110,7 @@ export function StudentDashboard() {
 
 			// Refresh the exams list and clear input
 			setExamCode("");
-			await fetchExams();
+			await fetchDashboardData();
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : "Failed to join exam",
@@ -154,17 +123,10 @@ export function StudentDashboard() {
 
 
 	// Calculate stats
-	const totalExams = completedExams.length;
-	const gradedExams = completedExams.filter((exam) => exam.status === "graded");
-	const avgScore =
-		gradedExams.length > 0
-			? Math.round(
-					gradedExams.reduce((sum, exam) => sum + (exam.score || 0), 0) /
-						gradedExams.length,
-				)
-			: 0;
-	const passedExams = gradedExams.filter(
-		(exam) => (exam.score || 0) >= 60,
+	const totalExams = statistics?.overview.totalExamsSubmitted || 0;
+	const avgScore = statistics?.scoreStatistics.averageScorePercentage ? Math.round(statistics.scoreStatistics.averageScorePercentage) : 0;
+	const passedExams = recentActivity.filter(
+		(exam) => exam.gradingStatus === "graded" && (exam.scorePercentage || 0) >= 50
 	).length;
 	const upcomingCount = studentExams.length;
 
@@ -394,190 +356,6 @@ export function StudentDashboard() {
 							</div>
 						</div>
 
-						{/* Two Column Layout */}
-						<div className="grid grid-cols-2 gap-6">
-							{/* Performance Chart */}
-							<div
-								className="rounded-2xl border p-6"
-								style={{
-									backgroundColor: "rgba(255, 255, 255, 0.03)",
-									backdropFilter: "blur(10px)",
-									borderColor: "rgba(255, 255, 255, 0.1)",
-								}}
-							>
-								<div className="flex items-center justify-between mb-6">
-									<div>
-										<h3
-											className="text-white text-lg mb-1"
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 600,
-											}}
-										>
-											Performance Trend
-										</h3>
-										<p className="text-gray-400 text-sm">
-											Your score progression over time
-										</p>
-									</div>
-									<Zap className="w-6 h-6 text-yellow-400" />
-								</div>
-								<ResponsiveContainer width="100%" height={200}>
-									<AreaChart data={performanceData}>
-										<defs>
-											<linearGradient
-												id="colorScore"
-												x1="0"
-												y1="0"
-												x2="0"
-												y2="1"
-											>
-												<stop
-													offset="5%"
-													stopColor="#3b82f6"
-													stopOpacity={0.3}
-												/>
-												<stop
-													offset="95%"
-													stopColor="#3b82f6"
-													stopOpacity={0}
-												/>
-											</linearGradient>
-										</defs>
-										<CartesianGrid
-											strokeDasharray="3 3"
-											stroke="rgba(255,255,255,0.1)"
-										/>
-										<XAxis
-											dataKey="exam"
-											stroke="#9ca3af"
-											style={{ fontSize: "12px" }}
-										/>
-										<YAxis stroke="#9ca3af" style={{ fontSize: "12px" }} />
-										<Tooltip
-											contentStyle={{
-												backgroundColor: "rgba(15, 17, 26, 0.95)",
-												border: "1px solid rgba(255, 255, 255, 0.1)",
-												borderRadius: "12px",
-												color: "#fff",
-											}}
-										/>
-										<Area
-											type="monotone"
-											dataKey="score"
-											stroke="#3b82f6"
-											fillOpacity={1}
-											fill="url(#colorScore)"
-										/>
-									</AreaChart>
-								</ResponsiveContainer>
-							</div>
-
-							{/* Recent Activity */}
-							<div
-								className="rounded-2xl border p-6"
-								style={{
-									backgroundColor: "rgba(255, 255, 255, 0.03)",
-									backdropFilter: "blur(10px)",
-									borderColor: "rgba(255, 255, 255, 0.1)",
-								}}
-							>
-								<div className="flex items-center justify-between mb-6">
-									<div>
-										<h3
-											className="text-white text-lg mb-1"
-											style={{
-												fontFamily: "Inter, sans-serif",
-												fontWeight: 600,
-											}}
-										>
-											Recent Activity
-										</h3>
-										<p className="text-gray-400 text-sm">
-											Your latest exam completions
-										</p>
-									</div>
-									<History className="w-6 h-6 text-purple-400" />
-								</div>
-								<div className="space-y-3">
-									{completedExams.slice(0, 3).map((exam) => (
-										<div
-											key={exam.id}
-											className="flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 hover:border-blue-500/50 hover:bg-white/5"
-											style={{
-												backgroundColor: "rgba(255, 255, 255, 0.02)",
-												borderColor: "rgba(255, 255, 255, 0.08)",
-											}}
-										>
-											<div
-												className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-													exam.status === "pending"
-														? "bg-yellow-500/20"
-														: exam.score && exam.score >= 85
-															? "bg-green-500/20"
-															: exam.score && exam.score >= 70
-																? "bg-blue-500/20"
-																: "bg-red-500/20"
-												}`}
-											>
-												<Trophy
-													className={`w-5 h-5 ${
-														exam.status === "pending"
-															? "text-yellow-400"
-															: exam.score && exam.score >= 85
-																? "text-green-400"
-																: exam.score && exam.score >= 70
-																	? "text-blue-400"
-																	: "text-red-400"
-													}`}
-												/>
-											</div>
-											<div className="flex-1 min-w-0">
-												<div
-													className="text-white text-sm mb-0.5"
-													style={{ fontFamily: "Inter, sans-serif" }}
-												>
-													{exam.name}
-												</div>
-												<div className="text-gray-400 text-xs">{exam.date}</div>
-											</div>
-											{exam.status === "graded" ? (
-												<div className="text-right">
-													<div
-														className={`px-3 py-1 rounded-lg text-sm mb-1 ${
-															exam.score && exam.score >= 85
-																? "bg-green-500/20 text-green-400"
-																: exam.score && exam.score >= 70
-																	? "bg-blue-500/20 text-blue-400"
-																	: "bg-red-500/20 text-red-400"
-														}`}
-														style={{
-															fontFamily: "Inter, sans-serif",
-															fontWeight: 600,
-														}}
-													>
-														{exam.score}%
-													</div>
-													<div className="text-gray-500 text-xs">
-														{exam.correctAnswers}/{exam.totalQuestions}
-													</div>
-												</div>
-											) : (
-												<div
-													className="px-3 py-1 rounded-lg text-sm bg-yellow-500/20 text-yellow-400"
-													style={{
-														fontFamily: "Inter, sans-serif",
-														fontWeight: 600,
-													}}
-												>
-													Pending
-												</div>
-											)}
-										</div>
-									))}
-								</div>
-							</div>
-						</div>
 
 						{/* Upcoming Exams Section */}
 						<div>
@@ -651,8 +429,8 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 				setIsActive(true);
 				const elapsed = Math.abs(distance);
 				setTimeLeft({
-					days: 0,
-					hours: Math.floor(elapsed / (1000 * 60 * 60)),
+					days: Math.floor(elapsed / (1000 * 60 * 60 * 24)),
+					hours: Math.floor((elapsed % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
 					minutes: Math.floor((elapsed % (1000 * 60 * 60)) / (1000 * 60)),
 					seconds: Math.floor((elapsed % (1000 * 60)) / 1000),
 				});
@@ -674,6 +452,7 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 
 	const isWaiting = exam.examStatus === "waiting";
 	const isGraded = exam.examStatus === "graded";
+	const isSubmitted = exam.examStatus === "submitted";
 	const isInProgress =
 		exam.examStatus === "in_progress" || exam.examStatus === "active";
 
@@ -684,20 +463,26 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 					? "border-green-500/50 shadow-lg shadow-green-500/20"
 					: isGraded
 						? "border-purple-500/50 hover:border-purple-500"
-						: "hover:border-blue-500/50"
+						: isSubmitted
+							? "border-yellow-500/50"
+							: "hover:border-blue-500/50"
 			}`}
 			style={{
 				backgroundColor: isInProgress
 					? "rgba(34, 197, 94, 0.05)"
 					: isGraded
 						? "rgba(168, 85, 247, 0.05)"
-						: "rgba(255, 255, 255, 0.03)",
+						: isSubmitted
+							? "rgba(234, 179, 8, 0.05)"
+							: "rgba(255, 255, 255, 0.03)",
 				backdropFilter: "blur(10px)",
 				borderColor: isInProgress
 					? "rgba(34, 197, 94, 0.3)"
 					: isGraded
 						? "rgba(168, 85, 247, 0.3)"
-						: "rgba(255, 255, 255, 0.1)",
+						: isSubmitted
+							? "rgba(234, 179, 8, 0.3)"
+							: "rgba(255, 255, 255, 0.1)",
 			}}
 		>
 			{/* Header */}
@@ -769,6 +554,18 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 				</div>
 			)}
 
+			{isSubmitted && (
+				<div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-yellow-500/20 border border-yellow-500/30">
+					<AlertCircle className="w-4 h-4 text-yellow-400" />
+					<span
+						className="text-yellow-400 text-sm"
+						style={{ fontFamily: "Inter, sans-serif", fontWeight: 600 }}
+					>
+						AWAITING GRADING
+					</span>
+				</div>
+			)}
+
 			{isWaiting && !isActive && (
 				<div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30">
 					<Clock className="w-4 h-4 text-blue-400" />
@@ -796,8 +593,8 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 				</div>
 			</div>
 
-			{/* Countdown Timer (Only for non-graded) */}
-			{!isGraded && (
+			{/* Countdown Timer (only for waiting / in_progress — not submitted or graded) */}
+			{!isGraded && !isSubmitted && (
 				<div className="mb-4">
 					<div className="text-gray-400 text-xs mb-2">
 						{isInProgress ? "Time Elapsed:" : "Starts in:"}
@@ -863,16 +660,7 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 			{isInProgress || isWaiting ? (
 				<button
 					onClick={() => {
-						const savedAttempts = JSON.parse(
-							localStorage.getItem("exam_attempts") || "{}",
-						);
-						const attemptId = savedAttempts[exam.examId];
-						if (attemptId) {
-							navigate(`/student/exam/${exam.examId}`);
-						} else {
-							// Fallback to examId if attemptId is missing
-							navigate(`/student/exam/${exam.examId}`);
-						}
+						navigate(`/student/exam/${exam.examId}`);
 					}}
 					className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition shadow-lg ${
 						isWaiting
@@ -895,6 +683,16 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 						View Results
 					</span>
 				</button>
+			) : isSubmitted ? (
+				<button
+					disabled
+					className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition cursor-not-allowed bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
+				>
+					<AlertCircle className="w-4 h-4" />
+					<span style={{ fontFamily: "Inter, sans-serif", fontWeight: 500 }}>
+						Awaiting Instructor Grading
+					</span>
+				</button>
 			) : (
 				<button
 					disabled
@@ -903,7 +701,7 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 				>
 					<Lock className="w-4 h-4" />
 					<span style={{ fontFamily: "Inter, sans-serif", fontWeight: 500 }}>
-						{isWaiting ? "Waiting for Proctor" : "Coming Soon"}
+						Not Available
 					</span>
 				</button>
 			)}

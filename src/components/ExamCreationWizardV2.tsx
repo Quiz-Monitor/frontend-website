@@ -33,6 +33,7 @@ interface Question {
   type: 'multiple-choice' | 'long-answer';
   points: number;
   options?: string[];
+  correctOptionIndex?: number;
 }
 
 export function ExamCreationWizardV2() {
@@ -49,9 +50,9 @@ export function ExamCreationWizardV2() {
   const [examName, setExamName] = useState('');
   const [examDescription, setExamDescription] = useState('');
   const [durationMinutes, setDurationMinutes] = useState(60);
-  const [startDate, setStartDate] = useState('Nov 28, 2025');
+  const [startDate, setStartDate] = useState('2025-11-28');
   const [startTime, setStartTime] = useState('17:27');
-  const [endDate, setEndDate] = useState('Dec 05, 2025');
+  const [endDate, setEndDate] = useState('2025-12-05');
   const [endTime, setEndTime] = useState('23:59');
   const [aiProtection, setAiProtection] = useState(true);
   const [randomizeOrder, setRandomizeOrder] = useState(false);
@@ -80,7 +81,7 @@ export function ExamCreationWizardV2() {
   const longAnswerCount = questions.filter(q => q.type === 'long-answer').length;
 
   const toIso = (dateText: string, timeText: string) => {
-    const parsed = new Date(`${dateText} ${timeText}`);
+    const parsed = new Date(`${dateText}T${timeText}`);
     if (Number.isNaN(parsed.getTime())) {
       throw new Error('Invalid start/end date or time format.');
     }
@@ -146,7 +147,7 @@ export function ExamCreationWizardV2() {
           choices: (question.options ?? []).map((choice, choiceIndex) => ({
             choiceId: 0,
             text: choice,
-            isCorrect: choiceIndex === 0,
+            isCorrect: choiceIndex === (question.correctOptionIndex ?? 0),
             orderNumber: choiceIndex + 1,
           })),
         });
@@ -189,6 +190,7 @@ export function ExamCreationWizardV2() {
       type,
       points: 5,
       options: type === 'multiple-choice' ? ['Option 1', 'Option 2'] : undefined,
+      correctOptionIndex: type === 'multiple-choice' ? 0 : undefined,
     };
     setQuestions([...questions, newQuestion]);
     setSelectedQuestionId(newQuestion.id);
@@ -341,40 +343,7 @@ export function ExamCreationWizardV2() {
                     <Settings className="w-5 h-5 text-purple-400" />
                     <span className="text-white">Exam Details</span>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-gray-400" />
-                    <span className="text-gray-300">AI Protection</span>
-                    <button
-                      onClick={() => setAiProtection(!aiProtection)}
-                      className={`w-12 h-6 rounded-full transition relative ${
-                        aiProtection ? 'bg-purple-600' : 'bg-gray-600'
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${
-                          aiProtection ? 'left-6' : 'left-0.5'
-                        }`}
-                      />
-                    </button>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-gray-400" />
-                    <span className="text-gray-300">Randomize Order</span>
-                    <button
-                      onClick={() => setRandomizeOrder(!randomizeOrder)}
-                      className={`w-12 h-6 rounded-full transition relative ${
-                        randomizeOrder ? 'bg-purple-600' : 'bg-gray-600'
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${
-                          randomizeOrder ? 'left-6' : 'left-0.5'
-                        }`}
-                      />
-                    </button>
-                  </div>
                 </div>
 
                 {/* Form */}
@@ -423,22 +392,22 @@ export function ExamCreationWizardV2() {
                       <label className="block text-gray-300 mb-2">Start Date & Time</label>
                       <div className="flex gap-2">
                         <div className="flex-1 relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-400" />
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-400 pointer-events-none" />
                           <input
-                            type="text"
+                            type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition"
+                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition [color-scheme:dark]"
                             style={{ backgroundColor: '#1a1d2e', borderColor: '#2d3246' }}
                           />
                         </div>
-                        <div className="w-32 relative">
-                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-400" />
+                        <div className="w-36 relative">
+                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-400 pointer-events-none" />
                           <input
-                            type="text"
+                            type="time"
                             value={startTime}
                             onChange={(e) => setStartTime(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition"
+                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition [color-scheme:dark]"
                             style={{ backgroundColor: '#1a1d2e', borderColor: '#2d3246' }}
                           />
                         </div>
@@ -450,22 +419,22 @@ export function ExamCreationWizardV2() {
                       <label className="block text-gray-300 mb-2">End Date & Time</label>
                       <div className="flex gap-2">
                         <div className="flex-1 relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400" />
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
                           <input
-                            type="text"
+                            type="date"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition"
+                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition [color-scheme:dark]"
                             style={{ backgroundColor: '#1a1d2e', borderColor: '#2d3246' }}
                           />
                         </div>
-                        <div className="w-32 relative">
-                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400" />
+                        <div className="w-36 relative">
+                          <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
                           <input
-                            type="text"
+                            type="time"
                             value={endTime}
                             onChange={(e) => setEndTime(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition"
+                            className="w-full pl-10 pr-4 py-3 rounded-lg text-white border focus:outline-none focus:border-purple-500 transition [color-scheme:dark]"
                             style={{ backgroundColor: '#1a1d2e', borderColor: '#2d3246' }}
                           />
                         </div>
@@ -515,10 +484,7 @@ export function ExamCreationWizardV2() {
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          <button className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-purple-700 transition">
-                            <Sparkles className="w-4 h-4" />
-                            Perfection
-                          </button>
+
                           <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-blue-700 transition">
                             <ImageIcon className="w-4 h-4" />
                             Add Image
@@ -563,11 +529,7 @@ export function ExamCreationWizardV2() {
                           <Heading2 className="w-4 h-4 text-gray-400" />
                         </button>
                         <div className="flex-1" />
-                        <div className="flex items-center gap-2 text-sm">
-                          <button className="px-3 py-1 bg-purple-600/20 text-purple-400 rounded">Raw</button>
-                          <button className="px-3 py-1 text-gray-400 hover:bg-white/5 rounded transition">Split</button>
-                          <button className="px-3 py-1 text-gray-400 hover:bg-white/5 rounded transition">Preview</button>
-                        </div>
+
                       </div>
 
                       {/* Question Text Area */}
@@ -591,9 +553,13 @@ export function ExamCreationWizardV2() {
                               <input
                                 type="radio"
                                 name={`question-${selectedQuestion.id}`}
-                                checked={index === 0}
-                                className="w-5 h-5 accent-purple-600"
-                                readOnly
+                                checked={(selectedQuestion.correctOptionIndex ?? 0) === index}
+                                onChange={() => {
+                                  setQuestions(questions.map(q => 
+                                    q.id === selectedQuestion.id ? { ...q, correctOptionIndex: index } : q
+                                  ));
+                                }}
+                                className="w-5 h-5 accent-purple-600 cursor-pointer"
                               />
                               <input
                                 type="text"
@@ -610,9 +576,22 @@ export function ExamCreationWizardV2() {
                               <button
                                 onClick={() => {
                                   const newOptions = selectedQuestion.options!.filter((_, i) => i !== index);
-                                  setQuestions(questions.map(q => 
-                                    q.id === selectedQuestion.id ? { ...q, options: newOptions } : q
-                                  ));
+                                  setQuestions(questions.map(q => {
+                                    if (q.id === selectedQuestion.id) {
+                                      let newCorrectIndex = q.correctOptionIndex ?? 0;
+                                      if (newCorrectIndex === index) {
+                                        newCorrectIndex = 0;
+                                      } else if (newCorrectIndex > index) {
+                                        newCorrectIndex -= 1;
+                                      }
+                                      return {
+                                        ...q,
+                                        options: newOptions,
+                                        correctOptionIndex: newCorrectIndex
+                                      };
+                                    }
+                                    return q;
+                                  }));
                                 }}
                                 className="p-2 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-lg transition"
                               >

@@ -235,21 +235,7 @@ export function MyExamsListPage() {
                         </div>
                       </div>
 
-                      {/* Active Exam Stats */}
-                      {status === 'active' && (
-                        <div className="mb-4 p-4 rounded-xl border" style={{ 
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          borderColor: 'rgba(16, 185, 129, 0.3)'
-                        }}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-green-400 text-sm flex items-center gap-2">
-                              <Radio className="w-4 h-4 animate-pulse" />
-                              Live Now
-                            </span>
-                            <span className="text-white text-sm">Monitor participation in real-time</span>
-                          </div>
-                        </div>
-                      )}
+
 
                       {/* Action Buttons */}
                       <div className="flex items-center gap-2">
@@ -259,12 +245,7 @@ export function MyExamsListPage() {
                             <span className="text-sm">{status === 'completed' ? 'View Results' : 'View Details'}</span>
                           </button>
                         )}
-                        {status === 'active' && (
-                          <button className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/20 hover:bg-green-500/30 text-green-400 transition border border-green-500/30">
-                            <Eye className="w-4 h-4" />
-                            <span className="text-sm">Monitor Live</span>
-                          </button>
-                        )}
+
                         <button className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition">
                           <Copy className="w-4 h-4" />
                         </button>

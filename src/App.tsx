@@ -12,7 +12,7 @@ import { ExamCreationWizardV2 } from './components/ExamCreationWizardV2';
 import { ResultsLogs } from './components/ResultsLogs';
 import { ResultsDatabasePage } from './components/ResultsDatabasePage';
 import { ExamStudentsListPage } from './components/ExamStudentsListPage';
-import { StudentResultDetailPage } from './components/StudentResultDetailPage';
+// StudentResultDetailPage removed — consolidated into InstructorReviewExamPage
 import { InstructorReviewExamPage } from './components/InstructorReviewExamPage';
 import { StudentDashboard } from './components/StudentDashboard';
 import { StudentMyExamsPage } from './components/StudentMyExamsPage';
@@ -45,7 +45,7 @@ export default function App() {
         <Route path="/instructor/results" element={<ResultsDatabasePage />} />
         <Route path="/instructor/results-database" element={<ResultsDatabasePage />} />
         <Route path="/instructor/exam-results/:examId" element={<ExamStudentsListPage />} />
-        <Route path="/instructor/student-result/:examId/:studentId" element={<StudentResultDetailPage />} />
+        {/* /instructor/student-result redirects consolidated into /instructor/review-exam */}
         <Route path="/instructor/review-exam/:examId/:studentId" element={<InstructorReviewExamPage />} />
         <Route path="/student" element={<StudentDashboard />} />
         <Route path="/student/code-entry" element={<StudentCodeEntry />} />

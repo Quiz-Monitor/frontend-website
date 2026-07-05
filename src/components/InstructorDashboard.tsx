@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Plus, Calendar, Users, Brain, FileText, BarChart3, 
@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart } from 'recharts';
 import { InstructorSidebar } from './InstructorSidebar';
+import { getInstructorStatistics, InstructorStatisticsResponse } from '../services/examService';
+import { useAuth } from '../context/AuthContext';
 
 const performanceData = [
   { name: 'Mon', exams: 12, students: 145, violations: 3 },
@@ -38,7 +40,20 @@ const liveActivities = [
 
 export function InstructorDashboard() {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
+  const { user } = useAuth();
+  const [stats, setStats] = useState<InstructorStatisticsResponse | null>(null);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const data = await getInstructorStatistics();
+        setStats(data);
+      } catch (error) {
+        console.error('Failed to load instructor stats', error);
+      }
+    }
+    loadStats();
+  }, []);
 
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#0F111A' }}>
@@ -72,25 +87,10 @@ export function InstructorDashboard() {
                     Dashboard
                   </h1>
                 </div>
-                <p className="text-gray-400 text-sm">Welcome back, Dr. John Davis</p>
+                <p className="text-gray-400 text-sm">Welcome back, {user?.fullName ?? 'Instructor'}</p>
               </div>
               
               <div className="flex items-center gap-4">
-                {/* Search */}
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search exams, students..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-12 pr-4 py-3 rounded-xl border bg-white/5 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition w-80"
-                    style={{ borderColor: 'rgba(255, 255, 255, 0.1)' }}
-                  />
-                </div>
-
-
-
                 {/* Create Exam Button */}
                 <button 
                   onClick={() => navigate('/instructor/create-exam')}
@@ -127,7 +127,7 @@ export function InstructorDashboard() {
                   </div>
                 </div>
                 <div className="text-3xl text-white mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  94
+                  {stats?.examOverview.totalExamsCreated || 0}
                 </div>
                 <div className="text-gray-400 text-sm">Total Exams</div>
               </div>
@@ -150,7 +150,7 @@ export function InstructorDashboard() {
                   </div>
                 </div>
                 <div className="text-3xl text-white mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  1,284
+                  {stats?.studentOverview.totalUniqueStudents || 0}
                 </div>
                 <div className="text-gray-400 text-sm">Active Students</div>
               </div>
@@ -173,7 +173,7 @@ export function InstructorDashboard() {
                   </div>
                 </div>
                 <div className="text-3xl text-white mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  87.5%
+                  {stats?.scoreStatistics.averageScorePercentage ? Math.round(stats.scoreStatistics.averageScorePercentage * 10) / 10 : 0}%
                 </div>
                 <div className="text-gray-400 text-sm">Average Score</div>
               </div>
@@ -196,105 +196,9 @@ export function InstructorDashboard() {
                   </div>
                 </div>
                 <div className="text-3xl text-white mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700 }}>
-                  94.2%
+                  {stats?.integrityStatistics.cleanAttempts || 0}
                 </div>
-                <div className="text-gray-400 text-sm">Integrity Score</div>
-              </div>
-            </div>
-
-            {/* Charts Row */}
-            <div className="grid grid-cols-2 gap-6">
-              {/* Performance Chart */}
-              <div className="rounded-2xl border p-6" style={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                backdropFilter: 'blur(10px)',
-                borderColor: 'rgba(255, 255, 255, 0.1)'
-              }}>
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-white text-lg mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                      Weekly Activity
-                    </h3>
-                    <p className="text-gray-400 text-sm">Exams and student participation</p>
-                  </div>
-                  <BarChart3 className="w-6 h-6 text-blue-400" />
-                </div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={performanceData}>
-                    <defs>
-                      <linearGradient id="colorExams" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="name" stroke="#9ca3af" style={{ fontSize: '12px' }} />
-                    <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(15, 17, 26, 0.95)', 
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '12px',
-                        color: '#fff'
-                      }}
-                    />
-                    <Area type="monotone" dataKey="students" stroke="#a855f7" fillOpacity={1} fill="url(#colorStudents)" />
-                    <Area type="monotone" dataKey="exams" stroke="#3b82f6" fillOpacity={1} fill="url(#colorExams)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Live Activity Feed */}
-              <div className="rounded-2xl border p-6" style={{ 
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                backdropFilter: 'blur(10px)',
-                borderColor: 'rgba(255, 255, 255, 0.1)'
-              }}>
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-white text-lg mb-1" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                      Live Activity
-                    </h3>
-                    <p className="text-gray-400 text-sm">Real-time exam monitoring</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <span className="text-green-400 text-sm">Live</span>
-                  </div>
-                </div>
-                <div className="space-y-3 max-h-[280px] overflow-y-auto pr-2">
-                  {liveActivities.map((activity, index) => (
-                    <div 
-                      key={index}
-                      className="flex items-start gap-3 p-3 rounded-xl border transition-all duration-200 hover:border-blue-500/50 hover:bg-white/5"
-                      style={{ 
-                        backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                        borderColor: 'rgba(255, 255, 255, 0.08)'
-                      }}
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        activity.type === 'success' ? 'bg-green-500/20' :
-                        activity.type === 'warning' ? 'bg-yellow-500/20' :
-                        'bg-blue-500/20'
-                      }`}>
-                        {activity.type === 'success' ? <CheckCircle className="w-4 h-4 text-green-400" /> :
-                         activity.type === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-400" /> :
-                         <Activity className="w-4 h-4 text-blue-400" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-white text-sm mb-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>
-                          {activity.student}
-                        </div>
-                        <div className="text-gray-400 text-xs">{activity.action}</div>
-                      </div>
-                      <div className="text-gray-500 text-xs flex-shrink-0">{activity.time}</div>
-                    </div>
-                  ))}
-                </div>
+                <div className="text-gray-400 text-sm">Clean Attempts</div>
               </div>
             </div>
 

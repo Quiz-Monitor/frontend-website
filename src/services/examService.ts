@@ -414,6 +414,39 @@ export async function gradeStudentWrittenAnswers(examId: number, studentId: numb
   return (await response.json()) as GradeWrittenAnswersResponse;
 }
 
+export interface SubmittedStudent {
+  studentId: number;
+  studentName: string;
+  email: string;
+  attemptId: number;
+  attemptStatus: string;
+  submitTime: string;
+  mcqScore: number;
+  manualScore: number;
+  finalScore: number;
+  totalViolations: number;
+  cheatingStatus: string;
+  hasWrittenAnswers: boolean;
+  writtenAnswersGraded: boolean;
+}
+
+export interface SubmittedStudentsResponse {
+  examId: number;
+  examTitle: string;
+  totalSubmitted: number;
+  students: SubmittedStudent[];
+}
+
+export async function getSubmittedStudents(examId: number): Promise<SubmittedStudentsResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/exams/${examId}/submitted-students`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as SubmittedStudentsResponse;
+}
+
 export interface ViolationRequest {
   questionId: number;
   violationType: string;
@@ -432,4 +465,133 @@ export async function submitViolation(attemptId: number, input: ViolationRequest
   if (!response.ok) {
     await handleError(response);
   }
+}
+
+export interface StudentSubmittedExam {
+  attemptId: number;
+  examId: number;
+  examTitle: string;
+  examCode: string;
+  instructorName: string;
+  submitTime: string | null;
+  durationMinutes: number;
+  timeSpentSeconds: number | null;
+  questionCount: number;
+  examTotalPoints: number;
+  gradingStatus: string;
+  mcqScore: number | null;
+  manualScore: number | null;
+  finalScore: number | null;
+  scorePercentage: number | null;
+  totalViolations: number;
+  cheatingStatus: string;
+}
+
+export interface StudentSubmittedExamsResponse {
+  totalExams: number;
+  exams: StudentSubmittedExam[];
+}
+
+export interface StudentStatisticsResponse {
+  overview: {
+    totalExamsSubmitted: number;
+    totalExamsGraded: number;
+    totalExamsPendingGrading: number;
+  };
+  scoreStatistics: {
+    averageScorePercentage: number | null;
+    highestScorePercentage: number | null;
+    lowestScorePercentage: number | null;
+    highestScoringExam: {
+      examTitle: string;
+      scorePercentage: number;
+      finalScore: number;
+      examTotalPoints: number;
+    } | null;
+    lowestScoringExam: {
+      examTitle: string;
+      scorePercentage: number;
+      finalScore: number;
+      examTotalPoints: number;
+    } | null;
+  };
+  integrityStatistics: {
+    totalViolationsAcrossAllExams: number;
+    averageViolationsPerExam: number;
+    cleanExams: number;
+    warningExams: number;
+    flaggedExams: number;
+  };
+  timeStatistics: {
+    averageTimeSpentSeconds: number;
+    totalTimeSpentSeconds: number;
+  };
+}
+
+export interface InstructorStatisticsResponse {
+  examOverview: {
+    totalExamsCreated: number;
+    totalExamsPublished: number;
+    totalExamsDraft: number;
+    totalExamsWithAttempts: number;
+  };
+  studentOverview: {
+    totalUniqueStudents: number;
+    totalAttempts: number;
+    totalGradedAttempts: number;
+    totalPendingGradingAttempts: number;
+  };
+  scoreStatistics: {
+    averageScorePercentage: number | null;
+    highestAverageExam: {
+      examId: number;
+      examTitle: string;
+      averageScorePercentage: number;
+      attemptCount: number;
+    } | null;
+    lowestAverageExam: {
+      examId: number;
+      examTitle: string;
+      averageScorePercentage: number;
+      attemptCount: number;
+    } | null;
+    passRate: number | null;
+  };
+  integrityStatistics: {
+    totalViolationsAcrossAllExams: number;
+    averageViolationsPerAttempt: number;
+    cleanAttempts: number;
+    warningAttempts: number;
+    flaggedAttempts: number;
+  };
+}
+
+export async function getStudentSubmittedExams(): Promise<StudentSubmittedExamsResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/students/me/submitted-exams`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as StudentSubmittedExamsResponse;
+}
+
+export async function getStudentStatistics(): Promise<StudentStatisticsResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/students/me/statistics`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as StudentStatisticsResponse;
+}
+
+export async function getInstructorStatistics(): Promise<InstructorStatisticsResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/instructors/me/statistics`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as InstructorStatisticsResponse;
 }

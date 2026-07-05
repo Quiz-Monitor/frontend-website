@@ -105,19 +105,45 @@ export function ExamInterface() {
         if (!sessionId) return;
         aiSessionId.current = sessionId;
 
+        // Build a human-readable description from the AI event details
+        const buildDescription = (event: any): string => {
+          const d = event.details || {};
+          if (event.type === 'suspicious_object' || event.type === 'object_detected') {
+            const objName = d.object || 'unknown object';
+            return `AI detected suspicious object: ${objName}`;
+          }
+          if (event.type === 'gaze_away') {
+            if (d.trigger === 'eyes_hidden') return 'AI detected: eyes hidden from camera';
+            const yaw   = d.yaw_deg   != null ? ` (yaw: ${d.yaw_deg.toFixed(1)})` : '';
+            const pitch = d.pitch_deg != null ? `, pitch: ${d.pitch_deg.toFixed(1)}` : '';
+            return `AI detected gaze away from screen${yaw}${pitch}`;
+          }
+          if (event.type === 'multiple_persons') {
+            return `AI detected multiple persons in frame (${d.num_persons ?? '?'} people)`;
+          }
+          if (event.type === 'face_missing') return 'AI detected: no face visible in camera';
+          if (event.type === 'low_visibility') {
+            const brightness = d.brightness != null ? ` (brightness: ${d.brightness.toFixed(1)})` : '';
+            const sharpness = d.sharpness != null ? `, sharpness: ${d.sharpness.toFixed(1)}` : '';
+            return `AI detected low visibility${brightness}${sharpness}`;
+          }
+          return `AI detected: ${event.type}`;
+        };
+
         aiProctorService.onEvents(async (events) => {
           for (const event of events) {
-            let mappedType = '';
-            if (event.type === 'gaze_away') mappedType = 'eye_away';
-            else if (event.type === 'multiple_persons') mappedType = 'multiple_person';
-            else if (event.type === 'suspicious_object') mappedType = 'object_detected';
+            // generic 'object_detected' (non-suspicious) is intentionally ignored
+            if (event.type !== 'object_detected') {
+              const objectName: string | undefined = event.type === 'suspicious_object'
+                ? (event.details?.object ?? 'unknown')
+                : undefined;
 
-            if (mappedType) {
               await submitViolation(currentAttemptId, {
                 questionId: questions[currentQuestionRef.current]?.questionId || 0,
-                violationType: mappedType,
-                description: `AI detected: ${event.type}`,
-                durationSeconds: 0
+                violationType: event.type,
+                description: buildDescription(event),
+                durationSeconds: 0,
+                ...(objectName ? { metadata: { object_name: objectName } } : {}),
               });
             }
           }
@@ -127,44 +153,54 @@ export function ExamInterface() {
           aiProctorService.connect(sessionId);
         }
 
-        // 1 frame every 2 seconds (or higher frequency later)
+        // Send frames at 2 fps (every 500ms) — needed for time-based
+        // duration filters (gaze_away: 1.5s, face_missing: 1.5s) to
+        // accumulate enough frames before firing.
         aiTimer = setInterval(async () => {
           if (!isActive || !videoRef.current || !canvasRef.current || !aiSessionId.current) return;
           const video = videoRef.current;
           const canvas = canvasRef.current;
           if (video.videoWidth === 0) return;
 
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+          // Downscale to 320×240 before sending — the AI pipeline
+          // resizes to 480px width anyway, so full 640×480 adds no value
+          // and doubles transfer size over WebSocket.
+          const CAPTURE_W = 320;
+          const CAPTURE_H = Math.round(video.videoHeight * (CAPTURE_W / video.videoWidth));
+          canvas.width = CAPTURE_W;
+          canvas.height = CAPTURE_H;
           const ctx = canvas.getContext('2d');
           if (!ctx) return;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          
-          const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
-          
+          ctx.drawImage(video, 0, 0, CAPTURE_W, CAPTURE_H);
+
+          // Explicit quality 0.85 — avoids over-compression that
+          // degrades MediaPipe iris landmark detection.
+          const base64Image = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+
           if (USE_WEBSOCKET) {
             aiProctorService.sendFrame(base64Image);
           } else {
             const events = await aiProctorService.inferREST(base64Image);
             if (events && events.length > 0) {
               for (const event of events) {
-                let mappedType = '';
-                if (event.type === 'gaze_away') mappedType = 'eye_away';
-                else if (event.type === 'multiple_persons') mappedType = 'multiple_person';
-                else if (event.type === 'suspicious_object') mappedType = 'object_detected';
+                // generic 'object_detected' (non-suspicious) is intentionally ignored
+                if (event.type !== 'object_detected') {
+                  const objectName: string | undefined = event.type === 'suspicious_object'
+                    ? (event.details?.object ?? 'unknown')
+                    : undefined;
 
-                if (mappedType) {
                   await submitViolation(currentAttemptId, {
                     questionId: questions[currentQuestionRef.current]?.questionId || 0,
-                    violationType: mappedType,
-                    description: `AI detected: ${event.type}`,
-                    durationSeconds: 0
+                    violationType: event.type,
+                    description: buildDescription(event),
+                    durationSeconds: 0,
+                    ...(objectName ? { metadata: { object_name: objectName } } : {}),
                   });
                 }
               }
             }
           }
-        }, 2000);
+        }, 500);
 
       } catch (e) {
         console.error('Camera init failed', e);
@@ -288,9 +324,9 @@ export function ExamInterface() {
       });
       
       setSubmissionResult(result);
-      setShowScoreModal(true);
       setShowSubmitConfirm(false);
       toast.success('Exam submitted successfully!');
+      navigate('/student');
     } catch (error) {
       toast.error('Failed to submit exam');
     } finally {
