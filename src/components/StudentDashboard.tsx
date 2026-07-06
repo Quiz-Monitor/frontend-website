@@ -31,6 +31,7 @@ import {
 	ResponsiveContainer,
 } from "recharts";
 import { StudentSidebar } from "./StudentSidebar";
+import { useAuth } from "../context/AuthContext";
 import {
 	joinExam,
 	getStudentExams,
@@ -57,6 +58,7 @@ const performanceData = [
 
 export function StudentDashboard() {
 	const navigate = useNavigate();
+	const { user } = useAuth();
 	const [activeSection, setActiveSection] = useState("dashboard");
 	const [examCode, setExamCode] = useState("");
 	const [isJoining, setIsJoining] = useState(false);
@@ -172,7 +174,7 @@ export function StudentDashboard() {
 									</h1>
 								</div>
 								<p className="text-gray-400 text-sm">
-									Welcome back, Michael Anderson
+									Welcome back, {user?.fullName ?? "Student"}
 								</p>
 							</div>
 
@@ -675,7 +677,7 @@ function CountdownCard({ exam }: { exam: StudentExam }) {
 				</button>
 			) : isGraded ? (
 				<button
-					onClick={() => navigate(`/student/history/${exam.examId}`)}
+					onClick={() => navigate(`/student/exam-review/${exam.examId}`)}
 					className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-700 hover:to-purple-600 text-white shadow-lg shadow-purple-500/20"
 				>
 					<Award className="w-5 h-5" />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addExamQuestion, createExam, ExamQuestionType, publishExam } from '../services/examService';
+import { toast } from 'sonner';
 import { 
   Brain,
   ChevronRight,
@@ -71,8 +72,7 @@ export function ExamCreationWizardV2() {
   const steps = [
     { number: 1, label: 'Exam Details', sublabel: 'Basic information' },
     { number: 2, label: 'Add Questions', sublabel: 'Create questions' },
-    { number: 3, label: 'AI Protection', sublabel: 'Configure rules' },
-    { number: 4, label: 'Review', sublabel: 'Final check' }
+    { number: 3, label: 'Review', sublabel: 'Final check' }
   ];
 
   const selectedQuestion = questions.find(q => q.id === selectedQuestionId);
@@ -175,6 +175,7 @@ export function ExamCreationWizardV2() {
       setApiError('');
       setIsPublishing(true);
       await publishExam(examId);
+      toast.success('Exam published successfully! Students can now join.');
       navigate('/instructor');
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Failed to publish exam.');
@@ -214,7 +215,7 @@ export function ExamCreationWizardV2() {
             </button>
             <ChevronRight className="w-4 h-4" />
             <span className="text-white">
-              {currentStep === 1 ? 'Create New Exam' : currentStep === 2 ? 'Add Questions' : currentStep === 3 ? 'AI Protection' : 'Exam Review'}
+              {currentStep === 1 ? 'Create New Exam' : currentStep === 2 ? 'Add Questions' : 'Exam Review'}
             </span>
           </div>
         </div>
@@ -625,139 +626,8 @@ export function ExamCreationWizardV2() {
             </div>
           )}
 
-          {/* Step 3: AI Protection */}
+          {/* Step 3: Review */}
           {currentStep === 3 && (
-            <div className="p-8">
-              <div className="max-w-4xl mx-auto">
-                {apiError && (
-                  <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-                    {apiError}
-                  </div>
-                )}
-                {/* Header */}
-                <div className="flex items-start justify-between mb-8">
-                  <div>
-                    <h1 className="text-white text-3xl mb-2">AI Proctoring Rules</h1>
-                    <p className="text-gray-400">Configure automatic behavior monitoring settings</p>
-                  </div>
-                  <button
-                    onClick={() => setCurrentStep(4)}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition"
-                  >
-                    Next Step
-                  </button>
-                </div>
-
-                {/* AI Protection Rules */}
-                <div className="space-y-4">
-                  {/* Detect Mobile Phones */}
-                  <div className="rounded-xl p-6" style={{ backgroundColor: '#292f40' }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-white mb-1">Detect Mobile Phones</h3>
-                        <p className="text-gray-400 text-sm">Alert when a mobile device is detected in frame</p>
-                      </div>
-                      <button
-                        onClick={() => setDetectMobilePhones(!detectMobilePhones)}
-                        className={`w-12 h-6 rounded-full transition relative ${
-                          detectMobilePhones ? 'bg-purple-600' : 'bg-gray-600'
-                        }`}
-                      >
-                        <div
-                          className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${
-                            detectMobilePhones ? 'left-6' : 'left-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Detect Multiple Faces */}
-                  <div className="rounded-xl p-6" style={{ backgroundColor: '#292f40' }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-white mb-1">Detect Multiple Faces</h3>
-                        <p className="text-gray-400 text-sm">Flag when more than one person is detected</p>
-                      </div>
-                      <button
-                        onClick={() => setDetectMultipleFaces(!detectMultipleFaces)}
-                        className={`w-12 h-6 rounded-full transition relative ${
-                          detectMultipleFaces ? 'bg-purple-600' : 'bg-gray-600'
-                        }`}
-                      >
-                        <div
-                          className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${
-                            detectMultipleFaces ? 'left-6' : 'left-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Detect Gaze / Looking Away */}
-                  <div className="rounded-xl p-6" style={{ backgroundColor: '#292f40' }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-white mb-1">Detect Gaze / Looking Away</h3>
-                        <p className="text-gray-400 text-sm">Monitor eye movement and attention patterns</p>
-                      </div>
-                      <button
-                        onClick={() => setDetectGaze(!detectGaze)}
-                        className={`w-12 h-6 rounded-full transition relative ${
-                          detectGaze ? 'bg-purple-600' : 'bg-gray-600'
-                        }`}
-                      >
-                        <div
-                          className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${
-                            detectGaze ? 'left-6' : 'left-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Disable Browser Tab Switching */}
-                  <div className="rounded-xl p-6" style={{ backgroundColor: '#292f40' }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-white mb-1">Disable Browser Tab Switching</h3>
-                        <p className="text-gray-400 text-sm">Detect and log when student leaves exam tab</p>
-                      </div>
-                      <button
-                        onClick={() => setDetectTabSwitching(!detectTabSwitching)}
-                        className={`w-12 h-6 rounded-full transition relative ${
-                          detectTabSwitching ? 'bg-purple-600' : 'bg-gray-600'
-                        }`}
-                      >
-                        <div
-                          className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${
-                            detectTabSwitching ? 'left-6' : 'left-0.5'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Navigation Buttons */}
-                <div className="flex items-center justify-between mt-8">
-                  <button
-                    onClick={() => setCurrentStep(2)}
-                    className="flex items-center gap-2 px-6 py-3 rounded-lg text-white border border-white/20 hover:bg-white/5 transition"
-                    style={{ backgroundColor: '#242838' }}
-                  >
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24">
-                      <path d="M10 18L4 12L10 6L11.4 7.45L7.85 11H20V13H7.85L11.4 16.55L10 18Z" fill="white" />
-                    </svg>
-                    Back
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Review */}
-          {currentStep === 4 && (
             <div className="p-8">
               <div className="max-w-4xl mx-auto">
                 {/* Header */}

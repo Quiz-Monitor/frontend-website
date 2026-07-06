@@ -92,10 +92,10 @@ export function ExamPermissionsCheck() {
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Brain className="w-7 h-7 text-white" strokeWidth={2.5} />
+              <img src="/logo.svg" className="w-7 h-7" alt="Logo" />
             </div>
-            <span className="text-white text-2xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-              ExamGuard AI
+            <span className="text-white text-2xl font-orbitron tracking-wider" style={{ fontWeight: 600 }}>
+              RAQEEB
             </span>
           </div>
         </div>

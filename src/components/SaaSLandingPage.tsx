@@ -277,12 +277,12 @@ export function SaaSLandingPage() {
               <div className="relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
                 <div className="relative w-12 h-12 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-500">
-                  <Brain className="w-7 h-7 text-white" strokeWidth={2.5} />
+                  <img src="/logo.svg" className="w-7 h-7" alt="Logo" />
                 </div>
               </div>
               <div>
-                <div className="text-[1.75rem] leading-none bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 800, letterSpacing: '-0.02em' }}>
-                  ExamGuard
+                <div className="text-[1.75rem] leading-none bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent font-orbitron tracking-wider" style={{ fontWeight: 800, letterSpacing: '-0.02em' }}>
+                  RAQEEB
                 </div>
                 <div className="text-xs text-gray-500 tracking-wider" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 500 }}>
                   AI PROCTORING

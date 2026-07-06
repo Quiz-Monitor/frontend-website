@@ -312,13 +312,7 @@ export async function submitBulkAnswers(attemptId: number, input: BulkAnswerRequ
   return (await response.json()) as BulkAnswerResponse;
 }
 
-export interface ExamStudentResult {
-  studentId: number;
-  studentName: string;
-  finalScore: number;
-  cheatingStatus: string;
-  totalViolations: number;
-}
+
 
 export interface StudentWrittenAnswer {
   answerId: number;
@@ -586,6 +580,70 @@ export async function getStudentStatistics(): Promise<StudentStatisticsResponse>
   return (await response.json()) as StudentStatisticsResponse;
 }
 
+export interface InstructorRecentExam {
+  examId: number;
+  examName: string;
+  numberOfStudents: number;
+  scheduledAt: string | null;
+  completionPercent: number | null;
+  numberOfFlags: number | null;
+}
+
+export interface ViolationDetailDto {
+  violationId: number;
+  violationType: string;
+  timestamp: string;
+  description: string | null;
+  durationSeconds: number | null;
+  screenshotUrl: string | null;
+}
+
+export interface ExamStudentResult {
+  studentId: number;
+  studentName: string;
+  finalScore: number;
+  cheatingStatus: string;
+  totalViolations: number;
+  tabSwitchCount: number;
+  eyeAwayCount: number;
+  multiplePersonCount: number;
+  faceMissingCount: number;
+  lowVisibilityCount: number;
+  suspiciousObjectCount: number;
+  violations: ViolationDetailDto[];
+}
+
+export interface StudentExamReviewQuestionChoice {
+  choiceId: number;
+  text: string;
+  isCorrect: boolean;
+  isSelected: boolean;
+}
+
+export interface StudentExamReviewQuestion {
+  questionId: number;
+  questionText: string;
+  questionType: string;
+  points: number;
+  earnedPoints: number | null;
+  orderNumber: number;
+  studentAnswer: string | null;
+  correctAnswer: string | null;
+  isCorrect: boolean | null;
+  instructorFeedback: string | null;
+  choices: StudentExamReviewQuestionChoice[] | null;
+}
+
+export interface StudentExamReviewResponse {
+  examId: number;
+  examTitle: string;
+  examTotalPoints: number;
+  studentScore: number | null;
+  scorePercentage: number | null;
+  status: string;
+  questions: StudentExamReviewQuestion[];
+}
+
 export async function getInstructorStatistics(): Promise<InstructorStatisticsResponse> {
   const response = await fetchWithAuth(`${API_BASE_URL}/instructors/me/statistics`, {
     method: 'GET',
@@ -594,4 +652,24 @@ export async function getInstructorStatistics(): Promise<InstructorStatisticsRes
     await handleError(response);
   }
   return (await response.json()) as InstructorStatisticsResponse;
+}
+
+export async function getInstructorRecentExams(): Promise<InstructorRecentExam[]> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/exams/instructor/recent`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as InstructorRecentExam[];
+}
+
+export async function getStudentExamReview(examId: number): Promise<StudentExamReviewResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/students/me/exams/${examId}/review`, {
+    method: 'GET',
+  });
+  if (!response.ok) {
+    await handleError(response);
+  }
+  return (await response.json()) as StudentExamReviewResponse;
 }

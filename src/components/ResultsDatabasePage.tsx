@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Calendar, Clock, FileText,
   Database, CheckCircle, AlertTriangle, Loader2, PenLine,
-  ChevronRight,
+  ChevronRight, Copy
 } from 'lucide-react';
 import { InstructorSidebar } from './InstructorSidebar';
 import { getMyExams, Exam } from '../services/examService';
@@ -196,8 +196,16 @@ export function ResultsDatabasePage() {
                         >
                           {exam.title}
                         </p>
-                        <p className="text-indigo-400 text-xs mt-0.5" style={{ fontFamily: 'Inter, sans-serif' }}>
+                        <p className="text-white text-xs mt-0.5 flex items-center gap-1" style={{ fontFamily: 'Inter, sans-serif' }}>
                           {exam.examCode}
+                          <Copy
+                            className="w-3 h-3 cursor-pointer hover:text-indigo-300 transition"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(exam.examCode);
+                              toast.success('Copied to clipboard');
+                            }}
+                          />
                         </p>
                       </div>
 

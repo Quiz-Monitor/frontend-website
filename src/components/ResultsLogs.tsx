@@ -124,8 +124,8 @@ export function ResultsLogs() {
               onClick={() => navigate('/')}
               className="flex items-center gap-2 hover:opacity-80 transition"
             >
-              <Brain className="w-6 h-6 text-blue-900" />
-              <span className="text-blue-900">ExamGuard AI</span>
+              <img src="/logo.svg" className="w-6 h-6" alt="Logo" />
+              <span className="text-blue-900 font-orbitron tracking-wider">RAQEEB</span>
             </button>
           </div>
         </div>
@@ -213,10 +213,7 @@ export function ResultsLogs() {
                 Flagged
               </button>
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 border-2 border-blue-900 text-blue-900 rounded-lg hover:bg-blue-50 transition">
-              <Download className="w-4 h-4" />
-              Export CSV
-            </button>
+
           </div>
         </div>
 

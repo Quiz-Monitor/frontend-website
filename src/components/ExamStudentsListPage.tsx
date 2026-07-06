@@ -261,7 +261,7 @@ export function ExamStudentsListPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {[
                 { icon: <Users className="w-5 h-5 text-blue-400" />, bg: 'rgba(59,130,246,0.15)', value: totalStudents, label: 'Total Students' },
-                { icon: <Award className="w-5 h-5 text-green-400" />, bg: 'rgba(34,197,94,0.15)', value: `${avgScore}%`, label: 'Average Score' },
+                { icon: <Award className="w-5 h-5 text-green-400" />, bg: 'rgba(34,197,94,0.15)', value: `${avgScore}`, label: 'Average Score' },
                 { icon: <CheckCircle className="w-5 h-5 text-purple-400" />, bg: 'rgba(147,51,234,0.15)', value: `${passRate}%`, label: 'Pass Rate' },
                 { icon: <PenLine className="w-5 h-5 text-orange-400" />, bg: 'rgba(249,115,22,0.15)', value: essaysPendingCount, label: 'Essays Pending' },
               ].map(({ icon, bg, value, label }) => (
@@ -358,7 +358,7 @@ export function ExamStudentsListPage() {
 
                     {/* Manual Score */}
                     <div className="text-sm" style={{ fontFamily: 'Inter, sans-serif' }}>
-                      <span className="text-purple-300 font-semibold">{student.manualScore ?? '—'}</span>
+                      <span className="text-white font-semibold">{student.manualScore ?? '—'}</span>
                     </div>
 
                     {/* Final Score */}

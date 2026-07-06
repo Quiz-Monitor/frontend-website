@@ -21,10 +21,10 @@ export function StudentCodeEntry() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <Brain className="w-7 h-7 text-blue-900" />
+              <img src="/logo.svg" className="w-7 h-7" alt="Logo" />
             </div>
           </div>
-          <h1 className="text-white mb-2">ExamGuard AI</h1>
+          <h1 className="text-white mb-2 font-orbitron tracking-wider">RAQEEB</h1>
           <p className="text-blue-100">Student Exam Portal</p>
         </div>
 

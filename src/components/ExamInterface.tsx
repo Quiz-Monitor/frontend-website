@@ -233,6 +233,7 @@ export function ExamInterface() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    window.addEventListener('blur', handleVisibilityChange);
 
     return () => {
       isActive = false;
@@ -243,6 +244,7 @@ export function ExamInterface() {
       aiProctorService.stop();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      window.removeEventListener('blur', handleVisibilityChange);
     };
   }, [attemptData, questions]);
 
@@ -325,8 +327,15 @@ export function ExamInterface() {
       
       setSubmissionResult(result);
       setShowSubmitConfirm(false);
+      setShowScoreModal(true);
+
+      const savedAttempts = JSON.parse(localStorage.getItem('exam_attempts') || '{}');
+      if (examId && savedAttempts[parseInt(examId)]) {
+        delete savedAttempts[parseInt(examId)];
+        localStorage.setItem('exam_attempts', JSON.stringify(savedAttempts));
+      }
+
       toast.success('Exam submitted successfully!');
-      navigate('/student');
     } catch (error) {
       toast.error('Failed to submit exam');
     } finally {
@@ -388,7 +397,7 @@ export function ExamInterface() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-white" strokeWidth={2.5} />
+                  <img src="/logo.svg" className="w-6 h-6" alt="Logo" />
                 </div>
                 <div>
                   <h1 className="text-white text-xl" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
@@ -766,7 +775,7 @@ export function ExamInterface() {
               </div>
               
               <button
-                onClick={() => navigate('/student')}
+                onClick={() => navigate('/student', { replace: true })}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98]"
                 style={{ fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '16px' }}
               >

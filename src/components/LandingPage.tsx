@@ -10,8 +10,8 @@ export function LandingPage() {
       <nav className="border-b border-gray-200 bg-white">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Brain className="w-8 h-8 text-blue-900" />
-            <span className="text-blue-900">ExamGuard AI</span>
+            <img src="/logo.svg" className="w-8 h-8" alt="Logo" />
+            <span className="text-blue-900 font-orbitron tracking-wider">RAQEEB</span>
           </div>
           <div className="flex gap-3">
             <button

@@ -33,10 +33,10 @@ export function SignUpStep1() {
           className="flex items-center gap-3 mb-8 group mx-auto justify-center"
         >
           <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:shadow-lg group-hover:shadow-blue-500/50 transition">
-            <Brain className="w-7 h-7 text-white" />
+            <img src="/logo.svg" className="w-7 h-7" alt="Logo" />
           </div>
-          <span className="text-2xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-            ExamGuard AI
+          <span className="text-2xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent font-orbitron tracking-wider">
+            RAQEEB
           </span>
         </button>
 

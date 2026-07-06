@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Brain, Home, FileText, History, LogOut,
+  Brain, Home, History, LogOut,
   ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { useSidebar } from '../context/SidebarContext';
@@ -8,7 +8,6 @@ import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: Home,     path: '/student' },
-  { id: 'exams',     label: 'My Exams',  icon: FileText, path: '/student/my-exams' },
   { id: 'history',   label: 'History',   icon: History,  path: '/student/history' },
 ];
 
@@ -72,15 +71,15 @@ export function StudentSidebar() {
       >
         <button onClick={() => navigate('/')} className="group" style={{ flexShrink: 0 }}>
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:shadow-lg group-hover:shadow-blue-500/40 transition-all duration-300">
-            <Brain className="w-5 h-5 text-white" strokeWidth={2.5} />
+            <img src="/logo.svg" className="w-6 h-6" alt="Logo" />
           </div>
         </button>
         {isExpanded && (
           <span
-            className="text-white font-semibold text-sm whitespace-nowrap"
-            style={{ fontFamily: 'Inter, sans-serif', opacity: isExpanded ? 1 : 0, transition: 'opacity 0.2s' }}
+            className="text-white font-semibold text-sm whitespace-nowrap font-orbitron tracking-wider"
+            style={{ opacity: isExpanded ? 1 : 0, transition: 'opacity 0.2s' }}
           >
-            QuizMonitor
+            RAQEEB
           </span>
         )}
       </div>

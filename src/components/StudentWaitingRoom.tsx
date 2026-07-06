@@ -69,8 +69,8 @@ export function StudentWaitingRoom() {
             onClick={() => navigate('/')}
             className="flex items-center gap-2 hover:opacity-80 transition"
           >
-            <Brain className="w-6 h-6 text-white" />
-            <span className="text-white">ExamGuard AI</span>
+            <img src="/logo.svg" className="w-6 h-6" alt="Logo" />
+            <span className="text-white font-orbitron tracking-wider">RAQEEB</span>
           </button>
         </div>
       </header>
